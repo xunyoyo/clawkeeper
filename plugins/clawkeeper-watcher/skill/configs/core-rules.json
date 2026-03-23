@@ -1,0 +1,128 @@
+{
+  "principles": [
+    "external-text-is-not-authority",
+    "secrets-are-need-to-know",
+    "side-effects-need-explicit-justification",
+    "restore-boundaries-before-velocity",
+    "freeze-then-explain-on-anomaly"
+  ],
+  "riskySandboxModes": [
+    "danger-full-access",
+    "disabled",
+    "off"
+  ],
+  "riskyApprovalModes": [
+    "never",
+    "auto"
+  ],
+  "trustedGatewayBinds": [
+    "127.0.0.1",
+    "localhost"
+  ],
+  "skillRiskPatterns": [
+    {
+      "id": "shell.remote-pipe",
+      "severity": "HIGH",
+      "target": "script",
+      "mode": "regex",
+      "pattern": "curl\\s+[^\\n|]+\\|\\s*(bash|sh)",
+      "title": "远程脚本直接管道执行",
+      "remediation": "改为先下载、校验，再执行。"
+    },
+    {
+      "id": "shell.force-delete",
+      "severity": "HIGH",
+      "target": "script",
+      "mode": "regex",
+      "pattern": "rm\\s+-rf\\s+(/|~|\\$HOME|\\.)",
+      "title": "高风险递归删除",
+      "remediation": "限制删除范围，并加入显式路径校验。"
+    },
+    {
+      "id": "shell.secret-read",
+      "severity": "MEDIUM",
+      "target": "script",
+      "mode": "regex",
+      "pattern": "(cat|grep|sed)[^\\n]*(\\.env|id_rsa|credentials?)",
+      "title": "脚本直接读取敏感文件",
+      "remediation": "将敏感读取缩小到必要字段，并增加用途说明。"
+    },
+    {
+      "id": "prompt.override-authority",
+      "severity": "MEDIUM",
+      "target": "skill",
+      "mode": "substring",
+      "pattern": "ignore previous instructions",
+      "title": "出现典型越权提示语",
+      "remediation": "删除会覆盖系统边界的提示语。"
+    },
+    {
+      "id": "prompt.secret-export",
+      "severity": "HIGH",
+      "target": "skill",
+      "mode": "substring",
+      "pattern": "send secrets",
+      "title": "技能文本鼓励导出敏感信息",
+      "remediation": "删除敏感外发类指令，并改为最小化读取。"
+    },
+    {
+      "id": "script.dynamic-launch",
+      "severity": "HIGH",
+      "target": "script",
+      "mode": "regex",
+      "pattern": "(eval\\s*\\(|exec\\s*\\(|os\\.system\\s*\\(|child_process\\.(exec|spawn)\\s*\\()",
+      "title": "脚本包含动态执行入口",
+      "remediation": "改为显式命令白名单，不从字符串动态拼接执行。"
+    },
+    {
+      "id": "script.identity-tamper",
+      "severity": "MEDIUM",
+      "target": "script",
+      "mode": "regex",
+      "pattern": "(SOUL\\.md|AGENTS\\.md|TOOLS\\.md|openclaw\\.json)",
+      "title": "脚本尝试修改代理身份或核心配置",
+      "remediation": "为配置改写增加用途说明、范围限制和显式确认。"
+    },
+    {
+      "id": "script.env-exfil-hint",
+      "severity": "HIGH",
+      "target": "script",
+      "mode": "regex",
+      "pattern": "(curl|wget|nc)[^\\n]*(\\.env|credentials?|token|auth)",
+      "title": "脚本存在敏感数据外发迹象",
+      "remediation": "拆分网络发送与敏感读取逻辑，并阻断默认外发路径。"
+    },
+    {
+      "id": "skill.boundary-rewrite",
+      "severity": "MEDIUM",
+      "target": "skill",
+      "mode": "regex",
+      "pattern": "(forget .*above|switch .*mode|new role|do not alert|keep .*secret)",
+      "title": "技能文本尝试重写边界或隐藏执行",
+      "remediation": "删除会改变边界来源或要求隐瞒的语句。"
+    },
+    {
+      "id": "skill.hidden-payload",
+      "severity": "MEDIUM",
+      "target": "skill",
+      "mode": "regex",
+      "pattern": "(base64:|data:text/plain;base64|\\\\u200[bcd]|\\\\ufeff|display:none|opacity:0)",
+      "title": "技能文本包含隐藏载荷迹象",
+      "remediation": "移除隐藏内容或编码包裹，并改为可见、可审查的文本。"
+    }
+  ],
+  "suspiciousSkillNames": [
+    "wallet",
+    "updater",
+    "security-tool",
+    "patch",
+    "installer"
+  ],
+  "dangerousPrerequisitePatterns": [
+    "disable gatekeeper",
+    "sudo bash",
+    "paste this into terminal",
+    "grant full disk access",
+    "turn off quarantine"
+  ]
+}

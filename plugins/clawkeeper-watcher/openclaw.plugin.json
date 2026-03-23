@@ -1,0 +1,72 @@
+{
+  "id": "clawkeeper-watcher",
+  "name": "Clawkeeper-Watcher",
+  "description": "Core-only audit, hardening, and behavior rules for OpenClaw",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "autoHarden": {
+        "type": "boolean",
+        "description": "Apply safe hardening steps on gateway start"
+      },
+      "strictMode": {
+        "type": "boolean",
+        "description": "Treat missing controls as higher severity"
+      },
+      "driftMonitor": {
+        "type": "boolean",
+        "description": "Watch config and AGENTS files for boundary drift"
+      },
+      "contextJudge": {
+        "type": "object",
+        "description": "Optional defaults for the /plugins/clawkeeper-watcher/context-judge HTTP route",
+        "additionalProperties": false,
+        "properties": {
+          "maxRiskBeforeStop": {
+            "type": "string",
+            "description": "Risk threshold that forces stop_run"
+          },
+          "requireUserConfirmationFor": {
+            "type": "array",
+            "description": "Tool names that should require ask_user by default",
+            "items": {
+              "type": "string"
+            }
+          },
+          "autoContinueAllowed": {
+            "type": "boolean",
+            "description": "Whether risky contexts may continue without ask_user"
+          },
+          "maxToolStepsWithoutUserTurn": {
+            "type": "number",
+            "description": "Max tool steps allowed before ask_user"
+          },
+          "treatCommandExecutionAsHighRisk": {
+            "type": "boolean",
+            "description": "Whether exec/bash/shell should be treated as high risk"
+          }
+        }
+      }
+    }
+  },
+  "uiHints": {
+    "autoHarden": {
+      "label": "Auto Harden",
+      "help": "Run safe hardening actions automatically on startup"
+    },
+    "strictMode": {
+      "label": "Strict Mode",
+      "help": "Escalate missing controls to stronger warnings"
+    },
+    "driftMonitor": {
+      "label": "Drift Monitor",
+      "help": "Warn when config or AGENTS rules drift after startup"
+    },
+    "contextJudge": {
+      "label": "Context Judge",
+      "help": "Default policy for the /plugins/clawkeeper/context-judge HTTP route"
+    }
+  }
+}

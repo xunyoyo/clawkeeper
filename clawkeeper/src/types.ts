@@ -30,21 +30,25 @@ export type ClawkeeperModeConfig = {
   gatewayPort: number;
 };
 
-/** Persisted config.json shape for a mode. */
+/** Persisted config.json shape — a subset of OpenClawConfig. */
 export type ClawkeeperConfig = {
-  mode: ClawkeeperMode;
-  watcher: {
-    enabled: boolean;
-    routes: {
-      contextJudge: string;
+  agents?: {
+    defaults?: {
+      workspace?: string;
     };
   };
-  workspace: string;
-  logs: string;
-  state: string;
-  runtime: string;
-  gateway: {
-    port: number;
+  gateway?: {
+    port?: number;
+  };
+  plugins?: {
+    enabled?: boolean;
+    load?: {
+      paths?: string[];
+    };
+    entries?: Record<string, {
+      enabled?: boolean;
+      config?: Record<string, unknown>;
+    }>;
   };
 };
 
