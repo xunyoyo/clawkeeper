@@ -1,9 +1,32 @@
-import fs from 'node:fs';
-import { createAuditContext, runAudit } from './audit-engine.js';
+import fs from "node:fs";
+import { createAuditContext, runAudit } from "./audit-engine.js";
+import { notifyDriftAlertToUserBridge } from "./startup-audit-notify.js";
 
 /** @type {{ file: string, listener: Function }[]} */
 let subscriptions = [];
 const watchTimers = new Map();
+const recentAlertKeys = new Map();
+const DRIFT_ALERT_TTL_MS = 5 * 60 * 1000;
+
+function pruneRecentAlertKeys(now = Date.now()) {
+  for (const [key, timestamp] of recentAlertKeys.entries()) {
+    if (now - timestamp > DRIFT_ALERT_TTL_MS) {
+      recentAlertKeys.delete(key);
+    }
+  }
+}
+
+function buildDriftAlertKey(file, report) {
+  const findings = Array.isArray(report?.findings) ? report.findings : [];
+  const risky = findings
+    .filter((item) => item?.severity === "CRITICAL" || item?.severity === "HIGH")
+    .slice(0, 3)
+    .map((item) => item?.id || item?.title)
+    .filter(Boolean)
+    .join(",");
+
+  return `${file}::${report?.score ?? "na"}::${risky}`;
+}
 
 export async function startDriftMonitor(stateDir, pluginConfig = {}, logger = console) {
   await stopDriftMonitor();
@@ -20,15 +43,43 @@ export async function startDriftMonitor(stateDir, pluginConfig = {}, logger = co
         // Debounce: avoid multiple rapid audits
         const fileKey = file;
         const existingTimer = watchTimers.get(fileKey);
-        if (existingTimer) clearTimeout(existingTimer);
+        if (existingTimer) {
+          clearTimeout(existingTimer);
+        }
 
         const timer = setTimeout(async () => {
           try {
             const nextContext = await createAuditContext(stateDir, pluginConfig);
             const report = await runAudit(nextContext);
-            const risky = report.findings.filter((item) => item.severity === 'CRITICAL' || item.severity === 'HIGH');
+            const risky = report.findings.filter(
+              (item) => item.severity === "CRITICAL" || item.severity === "HIGH",
+            );
             if (risky.length > 0) {
-              logger.warn(`[Clawkeeper] drift detected in ${file}: ${risky.map((item) => item.id).join(', ')}`);
+              logger.warn(
+                `[Clawkeeper] drift detected in ${file}: ${risky.map((item) => item.id).join(", ")}`,
+              );
+              try {
+                const now = Date.now();
+                pruneRecentAlertKeys(now);
+                const alertKey = buildDriftAlertKey(file, report);
+                if (!recentAlertKeys.has(alertKey)) {
+                  const notifyResult = await notifyDriftAlertToUserBridge({
+                    pluginConfig,
+                    report,
+                    logger,
+                    mode: "local",
+                    file,
+                  });
+                  if (notifyResult.sent) {
+                    recentAlertKeys.set(alertKey, now);
+                    logger.info?.(`[Clawkeeper] drift alert notification sent for ${file}`);
+                  }
+                }
+              } catch (error) {
+                logger.warn?.(
+                  `[Clawkeeper] drift alert notification failed for ${file}: ${error.message}`,
+                );
+              }
             }
           } catch (error) {
             logger.error(`[Clawkeeper] drift monitor failed for ${file}: ${error.message}`);
@@ -68,4 +119,5 @@ export async function stopDriftMonitor() {
     }
   }
   watchTimers.clear();
+  recentAlertKeys.clear();
 }

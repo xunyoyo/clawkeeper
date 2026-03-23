@@ -1,19 +1,23 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { createAuditContext, runAudit } from '../core/audit-engine.js';
-import { harden } from '../core/hardening.js';
-import { scanSkill } from '../core/skill-scanner.js';
-import { startDriftMonitor, stopDriftMonitor } from '../core/drift-monitor.js';
-import { rollback } from '../core/rollback.js';
-import { resolveStateDir } from '../core/state.js';
-import { formatConsoleReport, formatSkillScanReport } from '../reporters/console-reporter.js';
-import { formatJsonReport } from '../reporters/json-reporter.js';
-import { PLUGIN_ID, PLUGIN_NAME } from '../core/metadata.js';
-import { readLogFile, getLogFiles, getTodayLogPath } from '../core/interceptor.js';
-import { scanLogsForSecurityRisks, formatScanResults, saveSecurityScanReport } from '../core/security-scanner.js';
+import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { createAuditContext, runAudit } from "../core/audit-engine.js";
+import { startDriftMonitor, stopDriftMonitor } from "../core/drift-monitor.js";
+import { harden } from "../core/hardening.js";
+import { readLogFile, getLogFiles, getTodayLogPath } from "../core/interceptor.js";
+import { PLUGIN_ID, PLUGIN_NAME } from "../core/metadata.js";
+import { rollback } from "../core/rollback.js";
+import {
+  scanLogsForSecurityRisks,
+  formatScanResults,
+  saveSecurityScanReport,
+} from "../core/security-scanner.js";
+import { scanSkill } from "../core/skill-scanner.js";
+import { resolveStateDir, resolveUserOpenClawStateDir } from "../core/state.js";
+import { formatConsoleReport, formatSkillScanReport } from "../reporters/console-reporter.js";
+import { formatJsonReport } from "../reporters/json-reporter.js";
 
-const VALID_MODES = new Set(['remote', 'local']);
+const VALID_MODES = new Set(["remote", "local"]);
 
 /**
  * Resolve the active clawkeeper mode for CLI context.
@@ -21,19 +25,21 @@ const VALID_MODES = new Set(['remote', 'local']);
  */
 function resolveCliMode(config) {
   const fromConfig = config?.mode;
-  if (typeof fromConfig === 'string' && VALID_MODES.has(fromConfig)) {
+  if (typeof fromConfig === "string" && VALID_MODES.has(fromConfig)) {
     return fromConfig;
   }
   const fromEnv = process.env.CLAWKEEPER_MODE;
-  if (typeof fromEnv === 'string' && VALID_MODES.has(fromEnv)) {
+  if (typeof fromEnv === "string" && VALID_MODES.has(fromEnv)) {
     return fromEnv;
   }
-  return 'local';
+  return "local";
 }
 
 function requireLocalMode(mode, commandName) {
-  if (mode !== 'local') {
-    console.error(`[${PLUGIN_NAME}] "${commandName}" is only available in local mode (current: ${mode}).`);
+  if (mode !== "local") {
+    console.error(
+      `[${PLUGIN_NAME}] "${commandName}" is only available in local mode (current: ${mode}).`,
+    );
     console.error(`[${PLUGIN_NAME}] Please run this command on the local clawkeeper instance.`);
     return false;
   }
@@ -44,106 +50,130 @@ export function registerCliCommands({ program, config }) {
   const mode = resolveCliMode(config);
   const root = program.command(PLUGIN_ID).description(`${PLUGIN_NAME} core security controls`);
 
-  root.command('install')
-    .description('Install bundled runtime skill and print next steps (local only)')
+  root
+    .command("install")
+    .description("Install bundled runtime skill and print next steps (local only)")
     .action(async () => {
-      if (!requireLocalMode(mode, 'install')) return;
-      await installBundledSkill();
-      console.log('Clawkeeper-Watcher install completed.');
-      console.log('Next: openclaw clawkeeper-watcher audit');
+      if (!requireLocalMode(mode, "install")) {
+        return;
+      }
+      const userOpenClawStateDir = await resolveUserOpenClawStateDir();
+      await installBundledSkill(userOpenClawStateDir);
+      console.log("Clawkeeper-Watcher install completed.");
+      console.log("Next: openclaw clawkeeper-watcher audit");
     });
 
-  root.command('audit')
-    .description('Run the core security audit (local only)')
-    .option('--json', 'Output JSON')
-    .option('--fix', 'Apply safe fixes after audit')
+  root
+    .command("audit")
+    .description("Run the core security audit (local only)")
+    .option("--json", "Output JSON")
+    .option("--fix", "Apply safe fixes after audit")
     .action(async (...args) => {
-      if (!requireLocalMode(mode, 'audit')) return;
+      if (!requireLocalMode(mode, "audit")) {
+        return;
+      }
       const opts = args[0] ?? {};
-      const stateDir = await resolveStateDir();
-      const context = await createAuditContext(stateDir, config);
+      const userOpenClawStateDir = await resolveUserOpenClawStateDir();
+      const context = await createAuditContext(userOpenClawStateDir, config);
       const report = await runAudit(context);
       console.log(opts.json ? formatJsonReport(report) : formatConsoleReport(report));
 
       if (opts.fix) {
-        const result = await harden(stateDir, config);
-        console.log(`\nHardening applied. Backup: ${result.backupDir}`);
+        const result = await harden(userOpenClawStateDir, config);
+        console.log(`\nUser OpenClaw hardening applied. Backup: ${result.backupDir}`);
       }
     });
 
-  root.command('harden')
-    .description('Apply safe hardening changes (local only)')
+  root
+    .command("harden")
+    .description("Apply safe hardening changes (local only)")
     .action(async () => {
-      if (!requireLocalMode(mode, 'harden')) return;
-      const stateDir = await resolveStateDir();
-      const result = await harden(stateDir, config);
-      console.log(`Hardening applied. Backup: ${result.backupDir}`);
+      if (!requireLocalMode(mode, "harden")) {
+        return;
+      }
+      const userOpenClawStateDir = await resolveUserOpenClawStateDir();
+      const result = await harden(userOpenClawStateDir, config);
+      console.log(`User OpenClaw hardening applied. Backup: ${result.backupDir}`);
       for (const action of result.actions) {
         console.log(`  - ${action}`);
       }
     });
 
-  root.command('monitor')
-    .description('Run drift monitoring in the foreground (local only)')
+  root
+    .command("monitor")
+    .description("Run drift monitoring in the foreground (local only)")
     .action(async () => {
-      if (!requireLocalMode(mode, 'monitor')) return;
-      const stateDir = await resolveStateDir();
-      await startDriftMonitor(stateDir, config, console);
-      console.log('Clawkeeper-Watcher drift monitor is running. Press Ctrl+C to stop.');
+      if (!requireLocalMode(mode, "monitor")) {
+        return;
+      }
+      const userOpenClawStateDir = await resolveUserOpenClawStateDir();
+      await startDriftMonitor(userOpenClawStateDir, config, console);
+      console.log(
+        "Clawkeeper-Watcher drift monitor for user OpenClaw is running. Press Ctrl+C to stop.",
+      );
 
       const shutdown = async () => {
         await stopDriftMonitor();
         process.exit(0);
       };
 
-      process.once('SIGINT', shutdown);
-      process.once('SIGTERM', shutdown);
+      process.once("SIGINT", shutdown);
+      process.once("SIGTERM", shutdown);
       await new Promise(() => {});
     });
 
-  root.command('rollback')
-    .description('Restore the latest or selected backup (local only)')
-    .argument('[backup]', 'Backup folder name')
+  root
+    .command("rollback")
+    .description("Restore the latest or selected backup (local only)")
+    .argument("[backup]", "Backup folder name")
     .action(async (...args) => {
-      if (!requireLocalMode(mode, 'rollback')) return;
-      const stateDir = await resolveStateDir();
-      const result = await rollback(stateDir, args[0]);
-      console.log(`Rollback restored from: ${result.backupDir}`);
+      if (!requireLocalMode(mode, "rollback")) {
+        return;
+      }
+      const userOpenClawStateDir = await resolveUserOpenClawStateDir();
+      const result = await rollback(userOpenClawStateDir, args[0]);
+      console.log(`User OpenClaw rollback restored from: ${result.backupDir}`);
       for (const restored of result.restoredFiles) {
         console.log(`  - ${restored}`);
       }
     });
 
-  root.command('status')
-    .description('Show current score only')
+  root
+    .command("status")
+    .description("Show current score only")
     .action(async () => {
-      const stateDir = await resolveStateDir();
+      const stateDir =
+        mode === "local" ? await resolveUserOpenClawStateDir() : await resolveStateDir();
       const context = await createAuditContext(stateDir, config);
       const report = await runAudit(context);
       console.log(`Clawkeeper-Watcher score: ${report.score}/100`);
-      console.log(`Skill installed: ${context.skillInstalled ? 'yes' : 'no'}`);
-      console.log(`Top threats: ${Object.keys(report.threatSummary).join(', ') || 'none'}`);
+      console.log(`Skill installed: ${context.skillInstalled ? "yes" : "no"}`);
+      console.log(`Top threats: ${Object.keys(report.threatSummary).join(", ") || "none"}`);
     });
 
-  root.command('logs')
-    .description('Show event logs (tool calls, messages, LLM interactions, etc.)')
-    .option('--date <date>', 'Show logs for specific date (YYYY-MM-DD), defaults to today')
-    .option('--all', 'Show all available log files')
-    .option('--type <type>', 'Filter by event type (before_tool_call, message_received, message_sending, llm_input, llm_output)')
-    .option('--tool <name>', 'Filter by tool name (only for before_tool_call events)')
-    .option('--scan', 'Scan logs for security risks')
-    .option('--save-report [value]', 'Save security scan report to file (default: false)', 'false')
-    .option('--limit <number>', 'Limit output lines', '20')
+  root
+    .command("logs")
+    .description("Show event logs (tool calls, messages, LLM interactions, etc.)")
+    .option("--date <date>", "Show logs for specific date (YYYY-MM-DD), defaults to today")
+    .option("--all", "Show all available log files")
+    .option(
+      "--type <type>",
+      "Filter by event type (before_tool_call, message_received, message_sending, llm_input, llm_output)",
+    )
+    .option("--tool <name>", "Filter by tool name (only for before_tool_call events)")
+    .option("--scan", "Scan logs for security risks")
+    .option("--save-report [value]", "Save security scan report to file (default: false)", "false")
+    .option("--limit <number>", "Limit output lines", "20")
     .action(async (...args) => {
       const opts = args[0] ?? {};
 
       if (opts.all) {
         const files = await getLogFiles();
         if (files.length === 0) {
-          console.log('📭 No log files found');
+          console.log("📭 No log files found");
           return;
         }
-        console.log('📋 Available log files:');
+        console.log("📋 Available log files:");
         files.forEach((f) => console.log(`  • ${f}`));
         return;
       }
@@ -154,7 +184,7 @@ export function registerCliCommands({ program, config }) {
       } else {
         const now = new Date();
         const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
-        const today = beijingTime.toISOString().split('T')[0];
+        const today = beijingTime.toISOString().split("T")[0];
         filename = `${today}.jsonl`;
       }
 
@@ -168,9 +198,10 @@ export function registerCliCommands({ program, config }) {
       // Handle --scan option for security scanning
       if (opts.scan) {
         const stateDir = await resolveStateDir();
-        const shouldSaveReport = opts.saveReport && (opts.saveReport === true || opts.saveReport === 'true');
-        const scanResult = await scanLogsForSecurityRisks(records);
-        
+        const shouldSaveReport =
+          opts.saveReport && (opts.saveReport === true || opts.saveReport === "true");
+        const scanResult = scanLogsForSecurityRisks(records);
+
         if (shouldSaveReport) {
           const reportPath = await saveSecurityScanReport(scanResult, records, stateDir, filename);
           console.log(formatScanResults(scanResult, records));
@@ -189,11 +220,17 @@ export function registerCliCommands({ program, config }) {
 
       // Filter by tool name if specified (only for before_tool_call events)
       if (opts.tool) {
-        filtered = filtered.filter((r) => r.toolName && r.toolName.toLowerCase().includes(opts.tool.toLowerCase()));
+        filtered = filtered.filter(
+          (r) => r.toolName && r.toolName.toLowerCase().includes(opts.tool.toLowerCase()),
+        );
       }
 
       if (filtered.length === 0) {
-        const filterDesc = opts.type ? `type: ${opts.type}` : opts.tool ? `tool: ${opts.tool}` : 'filters';
+        const filterDesc = opts.type
+          ? `type: ${opts.type}`
+          : opts.tool
+            ? `tool: ${opts.tool}`
+            : "filters";
         console.log(`📭 No events found matching ${filterDesc}`);
         return;
       }
@@ -202,63 +239,73 @@ export function registerCliCommands({ program, config }) {
       const limit = parseInt(opts.limit, 10) || 20;
       const displayed = filtered.slice(-limit);
 
-      console.log(`\n📊 Event Logs (${filename}) - Latest ${displayed.length}/${filtered.length}\n`);
-      console.log('┌──────────────────────────────────────────────────────────────────────────┐');
+      console.log(
+        `\n📊 Event Logs (${filename}) - Latest ${displayed.length}/${filtered.length}\n`,
+      );
+      console.log("┌──────────────────────────────────────────────────────────────────────────┐");
       displayed.forEach((record) => {
         const eventLabel = record.type.padEnd(18);
         const timeAndType = `${record.timestamp} │ ${eventLabel}`;
         console.log(`│ ${timeAndType} │`);
-        
+
         // Show event-specific details
-        if (record.type === 'before_tool_call') {
-          console.log(`│   Tool: ${(record.toolName || 'unknown').padEnd(35)} │`);
+        if (record.type === "before_tool_call") {
+          console.log(`│   Tool: ${(record.toolName || "unknown").padEnd(35)} │`);
           if (record.paramsCount > 0) {
             console.log(`│   Params: ${record.paramsCount} args`);
           }
-        } else if (record.type === 'message_received' || record.type === 'message_sending') {
-          const direction = record.type === 'message_received' ? 'from' : 'to';
-          const target = record.type === 'message_received' ? record.from : record.to;
-          console.log(`│   ${direction.padEnd(6)}: ${(target || 'unknown').substring(0, 50)}`);
+        } else if (record.type === "message_received" || record.type === "message_sending") {
+          const direction = record.type === "message_received" ? "from" : "to";
+          const target = record.type === "message_received" ? record.from : record.to;
+          console.log(`│   ${direction.padEnd(6)}: ${(target || "unknown").substring(0, 50)}`);
           if (record.content) {
             console.log(`│   Content: ${record.content.substring(0, 50)}...`);
           }
-        } else if (record.type === 'llm_input') {
-          console.log(`│   Model: ${(record.model || 'unknown').padEnd(35)} │`);
+        } else if (record.type === "llm_input") {
+          console.log(`│   Model: ${(record.model || "unknown").padEnd(35)} │`);
           console.log(`│   Prompt length: ${record.promptLength} chars │`);
-        } else if (record.type === 'llm_output') {
-          console.log(`│   Model: ${(record.model || 'unknown').padEnd(35)} │`);
+        } else if (record.type === "llm_output") {
+          console.log(`│   Model: ${(record.model || "unknown").padEnd(35)} │`);
           if (record.totalTokens) {
-            console.log(`│   Tokens: ${record.totalTokens} (input: ${record.inputTokens}, output: ${record.outputTokens}) │`);
+            console.log(
+              `│   Tokens: ${record.totalTokens} (input: ${record.inputTokens}, output: ${record.outputTokens}) │`,
+            );
           }
           if (record.assistantTexts && Array.isArray(record.assistantTexts)) {
-            const textPreview = record.assistantTexts[0]?.substring(0, 50) || '';
+            const textPreview = record.assistantTexts[0]?.substring(0, 50) || "";
             if (textPreview) {
               console.log(`│   Response: ${textPreview}...`);
             }
           }
         }
       });
-      console.log('└──────────────────────────────────────────────────────────────────────────┘');
+      console.log("└──────────────────────────────────────────────────────────────────────────┘");
       console.log(`\n💾 Log file: ${filename}`);
       if (opts.type || opts.tool) {
         const filters = [];
-        if (opts.type) filters.push(`type: ${opts.type}`);
-        if (opts.tool) filters.push(`tool: ${opts.tool}`);
-        console.log(`🔍 Filters applied: ${filters.join(', ')}`);
+        if (opts.type) {
+          filters.push(`type: ${opts.type}`);
+        }
+        if (opts.tool) {
+          filters.push(`tool: ${opts.tool}`);
+        }
+        console.log(`🔍 Filters applied: ${filters.join(", ")}`);
       }
     });
 
-  root.command('log-path')
-    .description('Show the path to today\'s log file')
+  root
+    .command("log-path")
+    .description("Show the path to today's log file")
     .action(async () => {
       const logPath = await getTodayLogPath();
       console.log(`📁 Today's log file: ${logPath}`);
     });
 
-  root.command('scan-skill')
-    .description('Scan another skill for unsafe patterns')
-    .argument('<target>', 'Skill name in ~/.openclaw/skills or a local path')
-    .option('--json', 'Output JSON')
+  root
+    .command("scan-skill")
+    .description("Scan another skill for unsafe patterns")
+    .argument("<target>", "Skill name in ~/.openclaw/skills or a local path")
+    .option("--json", "Output JSON")
     .action(async (...args) => {
       const target = args[0];
       const opts = args[1] ?? {};
@@ -266,33 +313,48 @@ export function registerCliCommands({ program, config }) {
       console.log(opts.json ? formatJsonReport(report) : formatSkillScanReport(report));
     });
 
-  root.command('skill')
-    .description('Manage the bundled skill')
-    .command('install')
-    .description('Install the bundled runtime rule skill (local only)')
+  root
+    .command("skill")
+    .description("Manage the bundled skill")
+    .command("install")
+    .description("Install the bundled runtime rule skill (local only)")
     .action(async () => {
-      if (!requireLocalMode(mode, 'skill install')) return;
-      await installBundledSkill();
+      if (!requireLocalMode(mode, "skill install")) {
+        return;
+      }
+      const userOpenClawStateDir = await resolveUserOpenClawStateDir();
+      await installBundledSkill(userOpenClawStateDir);
     });
 }
 
-export async function installBundledSkill() {
-  await runBundledScript('install.sh');
+export async function installBundledSkill(targetStateDir) {
+  await runBundledScript("install.sh", {
+    OPENCLAW_HOME: targetStateDir,
+  });
 }
 
-async function runBundledScript(scriptName) {
+async function runBundledScript(scriptName, envOverrides = {}) {
   const currentFile = fileURLToPath(import.meta.url);
-  const skillDir = path.join(path.dirname(currentFile), '..', '..', 'skill', 'scripts', scriptName);
-  const { spawn } = await import('node:child_process');
+  const skillDir = path.join(path.dirname(currentFile), "..", "..", "skill", "scripts", scriptName);
+  const { spawn } = await import("node:child_process");
 
   await fs.access(skillDir);
 
   await new Promise((resolve, reject) => {
-    const child = spawn('bash', [skillDir], { stdio: 'inherit' });
-    child.on('exit', (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`${scriptName} exited with code ${code}`));
+    const child = spawn("bash", [skillDir], {
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        ...envOverrides,
+      },
     });
-    child.on('error', reject);
+    child.on("exit", (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`${scriptName} exited with code ${code}`));
+      }
+    });
+    child.on("error", reject);
   });
 }

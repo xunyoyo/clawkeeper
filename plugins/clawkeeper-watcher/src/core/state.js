@@ -1,16 +1,16 @@
-import fs from 'node:fs/promises';
-import fsSync from 'node:fs';
-import path from 'node:path';
-import os from 'node:os';
-import { DEFAULT_RULES, RULE_BLOCK_END, RULE_BLOCK_START } from './metadata.js';
+import fsSync from "node:fs";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { DEFAULT_RULES, RULE_BLOCK_END, RULE_BLOCK_START } from "./metadata.js";
 
 export async function resolveStateDir() {
   const candidates = [
     process.env.OPENCLAW_HOME,
-    path.join(os.homedir(), '.openclaw'),
-    path.join(os.homedir(), '.moltbot'),
-    path.join(os.homedir(), '.clawdbot'),
-    path.join(os.homedir(), 'clawd')
+    path.join(os.homedir(), ".openclaw"),
+    path.join(os.homedir(), ".moltbot"),
+    path.join(os.homedir(), ".clawdbot"),
+    path.join(os.homedir(), "clawd"),
   ].filter(Boolean);
 
   for (const candidate of candidates) {
@@ -25,21 +25,29 @@ export async function resolveStateDir() {
   return candidates[1];
 }
 
+export async function resolveUserOpenClawStateDir() {
+  const stateDir = path.join(os.homedir(), ".openclaw");
+  await fs.mkdir(stateDir, { recursive: true });
+  return stateDir;
+}
+
 export function getConfigPath(stateDir) {
-  for (const name of ['openclaw.json', 'moltbot.json', 'clawdbot.json']) {
+  for (const name of ["openclaw.json", "moltbot.json", "clawdbot.json"]) {
     const fullPath = path.join(stateDir, name);
-    if (fsSyncExists(fullPath)) return fullPath;
+    if (fsSyncExists(fullPath)) {
+      return fullPath;
+    }
   }
-  return path.join(stateDir, 'openclaw.json');
+  return path.join(stateDir, "openclaw.json");
 }
 
 export function getSkillInstallPath(stateDir) {
-  return path.join(stateDir, 'skills', 'clawkeeper-watcher');
+  return path.join(stateDir, "skills", "clawkeeper-watcher");
 }
 
 export async function readJsonIfExists(filePath) {
   try {
-    const raw = await fs.readFile(filePath, 'utf-8');
+    const raw = await fs.readFile(filePath, "utf-8");
     return JSON.parse(raw);
   } catch {
     return {};
@@ -57,28 +65,28 @@ export async function fileExists(filePath) {
 
 export async function writeJson(filePath, value) {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf-8');
+  await fs.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf-8");
 }
 
 export function getSoulPath(stateDir) {
-  return path.join(stateDir, 'AGENTS.md');
+  return path.join(stateDir, "AGENTS.md");
 }
 
 export async function readSoul(stateDir) {
   try {
-    return await fs.readFile(getSoulPath(stateDir), 'utf-8');
+    return await fs.readFile(getSoulPath(stateDir), "utf-8");
   } catch {
-    return '';
+    return "";
   }
 }
 
 export function buildRuleBlock() {
   const lines = [
     RULE_BLOCK_START,
-    '## Clawkeeper-Watcher Operational Constitution',
-    'This is not a set of static prohibitions, but an execution constraint chain: first confirm the boundary, then obtain information, and then implement the action.',
+    "## Clawkeeper-Watcher Operational Constitution",
+    "This is not a set of static prohibitions, but an execution constraint chain: first confirm the boundary, then obtain information, and then implement the action.",
     ...DEFAULT_RULES.map((rule, index) => `${index + 1}. ${rule}`),
-    RULE_BLOCK_END
+    RULE_BLOCK_END,
   ];
   return `${lines.join(os.EOL)}${os.EOL}`;
 }
@@ -94,12 +102,13 @@ export async function ensureRuleBlock(stateDir) {
     return { changed: false, path: soulPath };
   }
 
-  const nextContent = content.trim().length > 0
-    ? `${content.replace(/\s*$/, '')}${os.EOL}${os.EOL}${buildRuleBlock()}`
-    : `# AGENTS${os.EOL}${os.EOL}${buildRuleBlock()}`;
+  const nextContent =
+    content.trim().length > 0
+      ? `${content.replace(/\s*$/, "")}${os.EOL}${os.EOL}${buildRuleBlock()}`
+      : `# AGENTS${os.EOL}${os.EOL}${buildRuleBlock()}`;
 
   await fs.mkdir(path.dirname(soulPath), { recursive: true });
-  await fs.writeFile(soulPath, nextContent, 'utf-8');
+  await fs.writeFile(soulPath, nextContent, "utf-8");
   return { changed: true, path: soulPath };
 }
 

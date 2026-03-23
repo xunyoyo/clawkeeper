@@ -1,20 +1,20 @@
-import { createAuditContext, runAudit } from '../core/audit-engine.js';
-import { harden } from '../core/hardening.js';
-import { startDriftMonitor, stopDriftMonitor } from '../core/drift-monitor.js';
-import { PLUGIN_DESCRIPTION, PLUGIN_ID, PLUGIN_NAME, VERSION } from '../core/metadata.js';
-import { installBundledSkill, registerCliCommands } from './cli.js';
-import { resolveStateDir } from '../core/state.js';
-import { createContextJudgeHttpHandler } from './context-judge-http.js';
-import { notifyStartupAuditToUserBridge } from '../core/startup-audit-notify.js';
+import { createAuditContext, runAudit } from "../core/audit-engine.js";
+import { startDriftMonitor, stopDriftMonitor } from "../core/drift-monitor.js";
+import { harden } from "../core/hardening.js";
 import {
   createToolLoggerHook,
   createMessageReceivedHook,
   createMessageSendingHook,
   createLLMInputHook,
   createLLMOutputHook,
-} from '../core/interceptor.js';
+} from "../core/interceptor.js";
+import { PLUGIN_DESCRIPTION, PLUGIN_ID, PLUGIN_NAME, VERSION } from "../core/metadata.js";
+import { notifyStartupAuditToUserBridge } from "../core/startup-audit-notify.js";
+import { resolveUserOpenClawStateDir } from "../core/state.js";
+import { installBundledSkill, registerCliCommands } from "./cli.js";
+import { createContextJudgeHttpHandler } from "./context-judge-http.js";
 
-const VALID_MODES = new Set(['remote', 'local']);
+const VALID_MODES = new Set(["remote", "local"]);
 
 /**
  * Resolve the active clawkeeper mode.
@@ -22,14 +22,14 @@ const VALID_MODES = new Set(['remote', 'local']);
  */
 function resolveMode(pluginConfig) {
   const fromConfig = pluginConfig.mode;
-  if (typeof fromConfig === 'string' && VALID_MODES.has(fromConfig)) {
+  if (typeof fromConfig === "string" && VALID_MODES.has(fromConfig)) {
     return fromConfig;
   }
   const fromEnv = process.env.CLAWKEEPER_MODE;
-  if (typeof fromEnv === 'string' && VALID_MODES.has(fromEnv)) {
+  if (typeof fromEnv === "string" && VALID_MODES.has(fromEnv)) {
     return fromEnv;
   }
-  return 'local';
+  return "local";
 }
 
 export const clawkeeperPlugin = {
@@ -39,11 +39,11 @@ export const clawkeeperPlugin = {
   description: PLUGIN_DESCRIPTION,
   configSchema: {
     parse(value) {
-      if (value && typeof value === 'object' && !Array.isArray(value)) {
+      if (value && typeof value === "object" && !Array.isArray(value)) {
         return value;
       }
       return {};
-    }
+    },
   },
   register(api) {
     const pluginConfig = api.pluginConfig ?? {};
@@ -52,26 +52,26 @@ export const clawkeeperPlugin = {
     api.logger.info(`[${PLUGIN_NAME}] mode=${mode}`);
 
     api.registerCli((ctx) => registerCliCommands(ctx), {
-      commands: [PLUGIN_ID]
+      commands: [PLUGIN_ID],
     });
 
     api.registerHttpRoute({
-      path: '/plugins/clawkeeper-watcher/context-judge',
-      auth: 'gateway',
+      path: "/plugins/clawkeeper-watcher/context-judge",
+      auth: "gateway",
       handler: createContextJudgeHttpHandler({
         logger: api.logger,
         defaultPolicy: pluginConfig.contextJudge ?? {},
-        mode
-      })
+        mode,
+      }),
     });
 
     // ========== Event Loggers - Hook Registration ==========
     // Log all events to: workspace/log/YYYY-MM-DD.jsonl
-    
+
     // 1. Tool Call Logger
     try {
       const toolHook = createToolLoggerHook(api.logger);
-      api.on('before_tool_call', toolHook);
+      api.on("before_tool_call", toolHook);
       api.logger.info(`[${PLUGIN_NAME}] ✅ before_tool_call logger registered`);
     } catch (error) {
       api.logger.warn(`[${PLUGIN_NAME}] ⚠️  before_tool_call logger failed: ${error.message}`);
@@ -80,7 +80,7 @@ export const clawkeeperPlugin = {
     // 2. Message Received Logger
     try {
       const messageReceivedHook = createMessageReceivedHook(api.logger);
-      api.on('message_received', messageReceivedHook);
+      api.on("message_received", messageReceivedHook);
       api.logger.info(`[${PLUGIN_NAME}] ✅ message_received logger registered`);
     } catch (error) {
       api.logger.warn(`[${PLUGIN_NAME}] ⚠️  message_received logger failed: ${error.message}`);
@@ -89,7 +89,7 @@ export const clawkeeperPlugin = {
     // 3. Message Sending Logger
     try {
       const messageSendingHook = createMessageSendingHook(api.logger);
-      api.on('message_sending', messageSendingHook);
+      api.on("message_sending", messageSendingHook);
       api.logger.info(`[${PLUGIN_NAME}] ✅ message_sending logger registered`);
     } catch (error) {
       api.logger.warn(`[${PLUGIN_NAME}] ⚠️  message_sending logger failed: ${error.message}`);
@@ -98,7 +98,7 @@ export const clawkeeperPlugin = {
     // 4. LLM Input Logger
     try {
       const llmInputHook = createLLMInputHook(api.logger);
-      api.on('llm_input', llmInputHook);
+      api.on("llm_input", llmInputHook);
       api.logger.info(`[${PLUGIN_NAME}] ✅ llm_input logger registered`);
     } catch (error) {
       api.logger.warn(`[${PLUGIN_NAME}] ⚠️  llm_input logger failed: ${error.message}`);
@@ -107,33 +107,37 @@ export const clawkeeperPlugin = {
     // 5. LLM Output Logger
     try {
       const llmOutputHook = createLLMOutputHook(api.logger);
-      api.on('llm_output', llmOutputHook);
+      api.on("llm_output", llmOutputHook);
       api.logger.info(`[${PLUGIN_NAME}] ✅ llm_output logger registered`);
     } catch (error) {
       api.logger.warn(`[${PLUGIN_NAME}] ⚠️  llm_output logger failed: ${error.message}`);
     }
 
-    api.on('gateway_start', async () => {
+    api.on("gateway_start", async () => {
       // Audit, harden, and drift monitor are local-only operations
-      if (mode !== 'local') {
-        api.logger.info(`[${PLUGIN_NAME}] mode=${mode}, skipping local-only operations (audit/harden/drift)`);
+      if (mode !== "local") {
+        api.logger.info(
+          `[${PLUGIN_NAME}] mode=${mode}, skipping local-only operations (audit/harden/drift)`,
+        );
         return;
       }
 
-      const stateDir = await resolveStateDir();
-      let context = await createAuditContext(stateDir, pluginConfig);
+      const userOpenClawStateDir = await resolveUserOpenClawStateDir();
+      let context = await createAuditContext(userOpenClawStateDir, pluginConfig);
       if (!context.skillInstalled) {
         try {
-          await installBundledSkill();
-          context = await createAuditContext(stateDir, pluginConfig);
-          api.logger.info(`[${PLUGIN_NAME}] bundled skill installed`);
+          await installBundledSkill(userOpenClawStateDir);
+          context = await createAuditContext(userOpenClawStateDir, pluginConfig);
+          api.logger.info(`[${PLUGIN_NAME}] bundled skill installed for user OpenClaw`);
         } catch (error) {
-          api.logger.warn(`[${PLUGIN_NAME}] failed to install bundled skill: ${(error).message}`);
+          api.logger.warn(`[${PLUGIN_NAME}] failed to install bundled skill: ${error.message}`);
         }
       }
       const report = await runAudit(context);
       api.logger.info(`[${PLUGIN_NAME}] score=${report.score}/100`);
-      api.logger.info(`[${PLUGIN_NAME}] layered=${context.skillInstalled ? 'plugin+skill' : 'plugin-only'}`);
+      api.logger.info(
+        `[${PLUGIN_NAME}] layered=${context.skillInstalled ? "plugin+skill" : "plugin-only"}`,
+      );
 
       try {
         const notifyResult = await notifyStartupAuditToUserBridge({
@@ -150,20 +154,20 @@ export const clawkeeperPlugin = {
       }
 
       if (pluginConfig.autoHarden) {
-        const result = await harden(stateDir, pluginConfig);
+        const result = await harden(userOpenClawStateDir, pluginConfig);
         api.logger.info(`[${PLUGIN_NAME}] auto harden actions=${result.actions.length}`);
       }
 
       if (pluginConfig.driftMonitor) {
-        await startDriftMonitor(stateDir, pluginConfig, api.logger);
-        api.logger.info(`[${PLUGIN_NAME}] drift monitor started`);
+        await startDriftMonitor(userOpenClawStateDir, pluginConfig, api.logger);
+        api.logger.info(`[${PLUGIN_NAME}] drift monitor started for user OpenClaw`);
       }
     });
 
-    api.on('gateway_stop', async () => {
+    api.on("gateway_stop", async () => {
       await stopDriftMonitor();
     });
 
     api.logger.info(`[${PLUGIN_NAME}] v${VERSION} registered`);
-  }
+  },
 };

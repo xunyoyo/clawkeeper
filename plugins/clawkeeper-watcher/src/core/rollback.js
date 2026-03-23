@@ -1,13 +1,13 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
+import fs from "node:fs/promises";
+import path from "node:path";
 
 function getBackupRoot(stateDir) {
-  return path.join(stateDir, '.clawkeeper-watcher', 'backups');
+  return path.join(stateDir, ".clawkeeper-watcher", "backups");
 }
 
 export async function listBackups(stateDir) {
   try {
-    return (await fs.readdir(getBackupRoot(stateDir))).sort().reverse();
+    return (await fs.readdir(getBackupRoot(stateDir))).toSorted().toReversed();
   } catch {
     return [];
   }
@@ -17,11 +17,11 @@ export async function rollback(stateDir, backupName) {
   const backups = await listBackups(stateDir);
   const selected = backupName ?? backups[0];
   if (!selected) {
-    throw new Error('No Clawkeeper-Watcher backups found');
+    throw new Error("No Clawkeeper-Watcher backups found");
   }
 
   const backupDir = path.join(getBackupRoot(stateDir), selected);
-  const manifest = JSON.parse(await fs.readFile(path.join(backupDir, 'manifest.json'), 'utf-8'));
+  const manifest = JSON.parse(await fs.readFile(path.join(backupDir, "manifest.json"), "utf-8"));
 
   for (const file of manifest.files) {
     const source = path.join(backupDir, file.backupName);
@@ -32,6 +32,6 @@ export async function rollback(stateDir, backupName) {
 
   return {
     backupDir,
-    restoredFiles: manifest.files.map((file) => file.relativePath)
+    restoredFiles: manifest.files.map((file) => file.relativePath),
   };
 }

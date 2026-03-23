@@ -1,90 +1,90 @@
 # Clawkeeper-Watcher for OpenClaw
 
-面向 OpenClaw 的核心安全控制插件，跟随 clawkeeper 双端架构运行。
+Core security control plugin for OpenClaw, designed around clawkeeper's dual-end architecture.
 
-## 双端模式
+## Dual-Mode Operation
 
-插件通过 `config.mode`（或 `CLAWKEEPER_MODE` 环境变量）自动感知运行模式，默认 `local`。
+The plugin detects its runtime mode from `config.mode` or the `CLAWKEEPER_MODE` environment variable. The default mode is `local`.
 
-| 能力 | Remote | Local |
-|---|---|---|
-| Context Judge HTTP 端点 | yes | yes |
-| 事件日志（tool/message/LLM） | yes（被动） | yes |
-| 审计 / 加固 / 漂移检测 | - | yes |
-| Skill 安装 | - | yes |
-| CLI 只读命令（status/logs/scan-skill） | yes | yes |
+| Capability                                                | Remote        | Local |
+| --------------------------------------------------------- | ------------- | ----- |
+| Context Judge HTTP endpoint                               | yes           | yes   |
+| Event logging (tool/message/LLM)                          | yes (passive) | yes   |
+| Audit / hardening / drift monitoring                      | -             | yes   |
+| Skill installation                                        | -             | yes   |
+| Read-only CLI commands (`status` / `logs` / `scan-skill`) | yes           | yes   |
 
-## 安装
+## Installation
 
-安装插件：
+Install the plugin:
 
 ```sh
 npx openclaw plugins install -l .
 ```
 
-安装插件附带的 runtime skill（仅 local 模式）：
+Install the bundled runtime skill (local mode only):
 
 ```sh
 npx openclaw clawkeeper-watcher skill install
 ```
 
-## 命令
+## Commands
 
-### 双端通用（remote + local）
-
-```sh
-npx openclaw clawkeeper-watcher status                            # 当前安全分数
-npx openclaw clawkeeper-watcher logs                              # 查看今天的事件日志
-npx openclaw clawkeeper-watcher logs --date 2026-03-14            # 查看指定日期的日志
-npx openclaw clawkeeper-watcher logs --type before_tool_call      # 按事件类型过滤
-npx openclaw clawkeeper-watcher logs --tool bash                  # 按工具名过滤
-npx openclaw clawkeeper-watcher logs --scan                       # 扫描日志中的安全风险
-npx openclaw clawkeeper-watcher logs --scan --save-report         # 扫描并保存报告
-npx openclaw clawkeeper-watcher logs --all                        # 列出所有日志文件
-npx openclaw clawkeeper-watcher log-path                          # 显示今天日志文件路径
-npx openclaw clawkeeper-watcher scan-skill <name-or-path>         # 扫描第三方 skill
-```
-
-### 仅 Local 模式
-
-在 remote 模式下执行以下命令会被拒绝并提示切换到 local 端。
+### Available in both modes (`remote` + `local`)
 
 ```sh
-npx openclaw clawkeeper-watcher install                           # 安装 bundled skill
-npx openclaw clawkeeper-watcher audit                             # 运行安全审计
-npx openclaw clawkeeper-watcher audit --json                      # JSON 格式输出
-npx openclaw clawkeeper-watcher audit --fix                       # 审计后自动修复
-npx openclaw clawkeeper-watcher harden                            # 应用安全加固
-npx openclaw clawkeeper-watcher monitor                           # 前台运行漂移监控
-npx openclaw clawkeeper-watcher skill install                     # 安装 bundled runtime skill
-npx openclaw clawkeeper-watcher rollback [backup]                 # 恢复备份
+npx openclaw clawkeeper-watcher status                            # Show the current security score
+npx openclaw clawkeeper-watcher logs                              # Show today's event log
+npx openclaw clawkeeper-watcher logs --date 2026-03-14            # Show logs for a specific date
+npx openclaw clawkeeper-watcher logs --type before_tool_call      # Filter by event type
+npx openclaw clawkeeper-watcher logs --tool bash                  # Filter by tool name
+npx openclaw clawkeeper-watcher logs --scan                       # Scan the log for security risks
+npx openclaw clawkeeper-watcher logs --scan --save-report         # Scan and save a report
+npx openclaw clawkeeper-watcher logs --all                        # List all available log files
+npx openclaw clawkeeper-watcher log-path                          # Show the path to today's log file
+npx openclaw clawkeeper-watcher scan-skill <name-or-path>         # Scan a third-party skill
 ```
 
-## Context Judge HTTP 端点
+### Local mode only
 
-两个模式都会注册：
+The following commands are rejected in `remote` mode and must be run on the local side.
+
+```sh
+npx openclaw clawkeeper-watcher install                           # Install the bundled skill
+npx openclaw clawkeeper-watcher audit                             # Run the security audit
+npx openclaw clawkeeper-watcher audit --json                      # Output JSON
+npx openclaw clawkeeper-watcher audit --fix                       # Auto-fix after the audit
+npx openclaw clawkeeper-watcher harden                            # Apply safe hardening
+npx openclaw clawkeeper-watcher monitor                           # Run drift monitoring in the foreground
+npx openclaw clawkeeper-watcher skill install                     # Install the bundled runtime skill
+npx openclaw clawkeeper-watcher rollback [backup]                 # Restore a backup
+```
+
+## Context Judge HTTP Endpoint
+
+Both modes register the same endpoint:
 
 ```
 POST /plugins/clawkeeper-watcher/context-judge
 ```
 
-接收结构化上下文，返回判定结果：`continue` / `stop` / `ask_user`。
-响应中包含 `mode` 和 `localEnhanced` 字段以区分端侧。
+It accepts structured context and returns a decision: `continue`, `stop`, or `ask_user`.
+The response includes `mode` and `localEnhanced` so callers can distinguish the active side.
 
-## 控制面
+## Control Surface
 
-- 网络暴露面
-- 操作入口认证
-- 文件系统边界
-- 高风险执行审批
-- 运行时规则加载状态
-- 第三方 skill 风险模式
-- 事件日志 -- 自动记录工具调用、消息收发、LLM 交互到 `workspace/log/`
-- Context Judge -- 对外提供结构化上下文判定能力
+- Network exposure surface
+- Authentication on control entry points
+- Filesystem boundary checks
+- High-risk execution approval flow
+- Runtime rule-loading state
+- Third-party skill risk patterns
+- Event logging -- automatically records tool calls, message traffic, and LLM interactions to `workspace/log/`
+- Context Judge -- exposes structured context decisioning over HTTP
 
-## 输出约定
+## Output Contract
 
-审计和扫描报告保持统一结构：
+Audit and scan reports follow a shared structure:
 
 - `severity`
 - `evidence`
@@ -92,41 +92,41 @@ POST /plugins/clawkeeper-watcher/context-judge
 - `fix`
 - `next`
 
-可直接用于人工复核，也可被脚本消费。
+They are designed for both human review and script consumption.
 
-## 示例
+## Example
 
-仓库自带演示 skill：
+The repository includes a demo skill:
 
 ```sh
 npm run smoke:scan
 ```
 
-会扫描 `examples/unsafe-skill` 并输出最小结果。
+This scans `examples/unsafe-skill` and prints a minimal result.
 
-## 开发
+## Development
 
-运行测试：
+Run tests:
 
 ```sh
 npm test
 ```
 
-发布前确认：
+Before publishing, confirm:
 
-- `npm test` 通过
-- `npx openclaw clawkeeper-watcher audit` 可运行（local 模式）
-- `npx openclaw clawkeeper-watcher scan-skill <path>` 可运行
-- `skill/SKILL.md` 与插件命令保持一致
+- `npm test` passes
+- `npx openclaw clawkeeper-watcher audit` runs successfully in local mode
+- `npx openclaw clawkeeper-watcher scan-skill <path>` runs successfully
+- `skill/SKILL.md` stays aligned with the plugin commands
 
-## 结构
+## Structure
 
 ```text
 plugins/clawkeeper-watcher/
   src/
-    core/           # 审计引擎、加固、漂移监控、context-judge 等核心逻辑
-    plugin/          # SDK 注册、CLI 命令、HTTP handler
-    reporters/       # 控制台和 JSON 报告格式化
+    core/           # Audit engine, hardening, drift monitor, context-judge, and other core logic
+    plugin/         # SDK registration, CLI commands, and HTTP handlers
+    reporters/      # Console and JSON report formatting
     index.js
   skill/
     SKILL.md

@@ -3,9 +3,8 @@
  * 分析日志事件以检测安全风险
  */
 
-import fs from 'node:fs/promises';
-import fsSync from 'node:fs';
-import path from 'node:path';
+import fs from "node:fs/promises";
+import path from "node:path";
 import {
   PROMPT_INJECTION_PATTERNS,
   CREDENTIAL_LEAK_PATTERNS,
@@ -13,14 +12,14 @@ import {
   HIGH_RISK_TOOLS,
   ANOMALOUS_ACTIVITY_CONFIG,
   DETECTION_DESCRIPTIONS,
-} from './security-rules.js';
+} from "./security-rules.js";
 
 /**
  * 扫描日志记录中的安全风险
- * 
+ *
  * @param {Array} records - 来自特定日期的日志记录数组
  * @returns {Object} 扫描结果，包含风险列表和统计信息
- * 
+ *
  * 返回对象结构：
  *   - date: 扫描的日期 (YYYY-MM-DD 格式)
  *   - totalEvents: 扫描的总事件数
@@ -40,7 +39,7 @@ export async function scanLogsForSecurityRisks(records) {
     },
     summary: {
       riskCount: 0,
-    }
+    },
   };
 
   if (records.length === 0) {
@@ -55,7 +54,7 @@ export async function scanLogsForSecurityRisks(records) {
   // 扫描日志记录中的安全风险
   // TODO: 在 checkSecurityRisks 函数中实现具体的安全检测逻辑
   const detectedRisks = checkSecurityRisks(records);
-  
+
   result.risks = detectedRisks;
   result.summary.riskCount = detectedRisks.length;
 
@@ -64,14 +63,14 @@ export async function scanLogsForSecurityRisks(records) {
 
 /**
  * 检查日志记录中的安全风险
- * 
+ *
  * 实现多个安全检测模块，参考 openclaw-safety-guardian 的规则框架：
  * - 提示词注入检测 (Prompt injection detection)
  * - 凭证泄露检测 (Credential leak detection)
  * - 危险命令检测 (Dangerous command patterns)
  * - 可疑工具调用检测 (Suspicious tool calls)
  * - 异常活动频率检测 (Anomalous activity rates)
- * 
+ *
  * @param {Array} records - 待扫描的日志记录数组
  * @returns {Array} 检测到的风险数组，每个风险对象的结构应为：
  *   {
@@ -83,7 +82,7 @@ export async function scanLogsForSecurityRisks(records) {
  */
 function checkSecurityRisks(records) {
   const risks = [];
-  
+
   if (records.length === 0) {
     return risks;
   }
@@ -94,7 +93,7 @@ function checkSecurityRisks(records) {
   detectDangerousCommands(records, risks);
   detectSuspiciousToolCalls(records, risks);
   detectAnomalousActivity(records, risks);
-  
+
   return risks;
 }
 
@@ -108,13 +107,13 @@ function detectPromptInjection(records, risks) {
 
   for (let i = 0; i < records.length; i++) {
     const record = records[i];
-    let contentToCheck = '';
+    let contentToCheck = "";
 
     // 检查不同类型的日志记录
-    if (record.type === 'llm_input') {
-      contentToCheck = (record.systemPrompt || '') + ' ' + (record.prompt || '');
-    } else if (record.type === 'message_received' || record.type === 'message_sending') {
-      contentToCheck = record.content || '';
+    if (record.type === "llm_input") {
+      contentToCheck = (record.systemPrompt || "") + " " + (record.prompt || "");
+    } else if (record.type === "message_received" || record.type === "message_sending") {
+      contentToCheck = record.content || "";
     }
 
     // 检查是否匹配注入模式
@@ -145,13 +144,13 @@ function detectCredentialLeaks(records, risks) {
 
   for (let i = 0; i < records.length; i++) {
     const record = records[i];
-    let contentToCheck = '';
+    let contentToCheck = "";
 
     // 检查输出阶段（LLM输出、消息发送）
-    if (record.type === 'llm_output') {
-      contentToCheck = (record.assistantTexts?.[0] || '');
-    } else if (record.type === 'message_sending') {
-      contentToCheck = record.content || '';
+    if (record.type === "llm_output") {
+      contentToCheck = record.assistantTexts?.[0] || "";
+    } else if (record.type === "message_sending") {
+      contentToCheck = record.content || "";
     }
 
     // 检查是否包含凭证模式
@@ -186,13 +185,13 @@ function detectDangerousCommands(records, risks) {
     const record = records[i];
 
     // 检查工具调用参数中的危险命令
-    if (record.type === 'before_tool_call') {
-      const toolName = record.toolName || '';
+    if (record.type === "before_tool_call") {
+      const toolName = record.toolName || "";
       const isCommandTool = /^(exec|shell|spawn|bash|sh|command)$/i.test(toolName);
 
       if (isCommandTool && record.params) {
         const paramsStr = JSON.stringify(record.params);
-        
+
         for (const pattern of dangerousPatterns) {
           if (pattern.test(paramsStr)) {
             affectedRecords.push(i);
@@ -224,8 +223,8 @@ function detectSuspiciousToolCalls(records, risks) {
   for (let i = 0; i < records.length; i++) {
     const record = records[i];
 
-    if (record.type === 'before_tool_call') {
-      const toolName = (record.toolName || '').toLowerCase();
+    if (record.type === "before_tool_call") {
+      const toolName = (record.toolName || "").toLowerCase();
 
       if (highRiskTools.has(toolName)) {
         highRiskCalls.push(i);
@@ -254,9 +253,9 @@ function detectAnomalousActivity(records, risks) {
 
   for (const record of records) {
     eventCounts[record.type] = (eventCounts[record.type] || 0) + 1;
-    
-    if (record.type === 'before_tool_call') {
-      const toolName = record.toolName || 'unknown';
+
+    if (record.type === "before_tool_call") {
+      const toolName = record.toolName || "unknown";
       toolCounts[toolName] = (toolCounts[toolName] || 0) + 1;
     }
   }
@@ -274,8 +273,8 @@ function detectAnomalousActivity(records, risks) {
   if (anomalousTools.length > 0) {
     const affectedRecords = [];
     for (let i = 0; i < records.length; i++) {
-      if (records[i].type === 'before_tool_call') {
-        if (anomalousTools.some(a => a.toolName === records[i].toolName)) {
+      if (records[i].type === "before_tool_call") {
+        if (anomalousTools.some((a) => a.toolName === records[i].toolName)) {
           affectedRecords.push(i);
         }
       }
@@ -292,16 +291,18 @@ function detectAnomalousActivity(records, risks) {
 
 /**
  * 从日志记录中提取日期
- * 
+ *
  * @param {Object} record - 单条日志记录
  * @returns {string|null} 日期字符串 (YYYY-MM-DD 格式)，如果解析失败返回 null
  */
 function extractDateFromRecord(record) {
-  if (!record.timestamp) return null;
-  
+  if (!record.timestamp) {
+    return null;
+  }
+
   try {
     const date = new Date(record.timestamp);
-    return date.toISOString().split('T')[0];
+    return date.toISOString().split("T")[0];
   } catch {
     return null;
   }
@@ -309,11 +310,11 @@ function extractDateFromRecord(record) {
 
 /**
  * 格式化扫描结果以输出到控制台
- * 
+ *
  * @param {Object} scanResult - 来自 scanLogsForSecurityRisks 函数的扫描结果
  * @param {Array} records - 原始的日志记录数组，用于显示具体的风险日志
  * @returns {string} 格式化的输出字符串，包含扫描报告的完整内容
- * 
+ *
  * 报告内容包括：
  * - 扫描日期和扫描的事件总数
  * - 按事件类型分类的统计
@@ -322,26 +323,26 @@ function extractDateFromRecord(record) {
  */
 export function formatScanResults(scanResult, records = []) {
   if (!scanResult || scanResult.totalEvents === 0) {
-    return '📭 Scan Result: No log events available for analysis';
+    return "📭 Scan Result: No log events available for analysis";
   }
 
   const lines = [];
-  
-  lines.push(`\n🔍 Security Scan Report - ${scanResult.date || 'Unknown Date'}\n`);
+
+  lines.push(`\n🔍 Security Scan Report - ${scanResult.date || "Unknown Date"}\n`);
   lines.push(
     `Total Events Scanned: ${scanResult.totalEvents} | ` +
-    `Risks Detected: ${scanResult.summary.riskCount}`
+      `Risks Detected: ${scanResult.summary.riskCount}`,
   );
-  
+
   // Event type statistics
-  lines.push('\n📊 Event Type Statistics:');
+  lines.push("\n📊 Event Type Statistics:");
   for (const [type, count] of Object.entries(scanResult.statistics.byType)) {
-    lines.push(`  • ${type}: ${count}`);
+    lines.push(`  • ${type}: ${String(count)}`);
   }
 
   // Detected security risks details
   if (scanResult.summary.riskCount > 0) {
-    lines.push('\n⚠️  Detected Security Risks:');
+    lines.push("\n⚠️  Detected Security Risks:");
     for (const risk of scanResult.risks) {
       lines.push(`  🔔 ${risk.title}`);
       if (risk.description) {
@@ -349,9 +350,9 @@ export function formatScanResults(scanResult, records = []) {
       }
       if (risk.affectedRecords && risk.affectedRecords.length > 0) {
         lines.push(`      📊 Affected Events: ${risk.affectedRecords.length}`);
-        
+
         // Print specific log records
-        lines.push('      📋 Log Records:');
+        lines.push("      📋 Log Records:");
         for (const recordIdx of risk.affectedRecords) {
           const record = records[recordIdx];
           if (record) {
@@ -361,64 +362,68 @@ export function formatScanResults(scanResult, records = []) {
       }
     }
   } else {
-    lines.push('\n✅ No security risks detected');
+    lines.push("\n✅ No security risks detected");
   }
 
   // Summary information
-  lines.push('\n📌 Scan Summary:');
-  lines.push(`  Risks Found: ${scanResult.summary.riskCount > 0 ? '⚠️  Yes' : '✅ No'}`);
-  
-  return lines.join('\n');
+  lines.push("\n📌 Scan Summary:");
+  lines.push(`  Risks Found: ${scanResult.summary.riskCount > 0 ? "⚠️  Yes" : "✅ No"}`);
+
+  return lines.join("\n");
 }
 
 /**
  * 格式化单条日志记录用于显示
- * 
+ *
  * @param {Object} record - 日志记录
  * @param {number} index - 记录的序号（1开始）
  * @returns {string} 格式化的日志字符串
  */
 function formatLogRecord(record, index) {
   const lines = [];
-  const timestamp = record.timestamp || 'Unknown Time';
-  
+  const timestamp = record.timestamp || "Unknown Time";
+
   lines.push(`        [${index}] ${timestamp} | ${record.type}`);
-  
+
   // Add detailed information based on log type
-  if (record.type === 'before_tool_call') {
-    lines.push(`            Tool: ${record.toolName || 'unknown'}`);
+  if (record.type === "before_tool_call") {
+    lines.push(`            Tool: ${record.toolName || "unknown"}`);
     if (record.params) {
       const paramsStr = JSON.stringify(record.params).substring(0, 100);
-      lines.push(`            Parameters: ${paramsStr}${JSON.stringify(record.params).length > 100 ? '...' : ''}`);
+      lines.push(
+        `            Parameters: ${paramsStr}${JSON.stringify(record.params).length > 100 ? "..." : ""}`,
+      );
     }
-  } else if (record.type === 'llm_input') {
-    lines.push(`            Model: ${record.model || 'unknown'}`);
+  } else if (record.type === "llm_input") {
+    lines.push(`            Model: ${record.model || "unknown"}`);
     if (record.prompt) {
       const promptStr = record.prompt.substring(0, 100);
-      lines.push(`            Prompt: ${promptStr}${record.prompt.length > 100 ? '...' : ''}`);
+      lines.push(`            Prompt: ${promptStr}${record.prompt.length > 100 ? "..." : ""}`);
     }
-  } else if (record.type === 'llm_output') {
-    lines.push(`            Model: ${record.model || 'unknown'}`);
+  } else if (record.type === "llm_output") {
+    lines.push(`            Model: ${record.model || "unknown"}`);
     if (record.assistantTexts && Array.isArray(record.assistantTexts)) {
-      const responseStr = record.assistantTexts[0]?.substring(0, 100) || '';
-      lines.push(`            Response: ${responseStr}${record.assistantTexts[0]?.length > 100 ? '...' : ''}`);
+      const responseStr = record.assistantTexts[0]?.substring(0, 100) || "";
+      lines.push(
+        `            Response: ${responseStr}${record.assistantTexts[0]?.length > 100 ? "..." : ""}`,
+      );
     }
-  } else if (record.type === 'message_received' || record.type === 'message_sending') {
-    const direction = record.type === 'message_received' ? 'From' : 'To';
-    const target = record.type === 'message_received' ? record.from : record.to;
-    lines.push(`            ${direction}: ${target || 'unknown'}`);
+  } else if (record.type === "message_received" || record.type === "message_sending") {
+    const direction = record.type === "message_received" ? "From" : "To";
+    const target = record.type === "message_received" ? record.from : record.to;
+    lines.push(`            ${direction}: ${target || "unknown"}`);
     if (record.content) {
       const contentStr = record.content.substring(0, 100);
-      lines.push(`            Content: ${contentStr}${record.content.length > 100 ? '...' : ''}`);
+      lines.push(`            Content: ${contentStr}${record.content.length > 100 ? "..." : ""}`);
     }
   }
-  
-  return lines.join('\n');
+
+  return lines.join("\n");
 }
 
 /**
  * 保存安全扫描报告到txt文件
- * 
+ *
  * @param {Object} scanResult - 来自 scanLogsForSecurityRisks 函数的扫描结果
  * @param {Array} records - 原始的日志记录数组
  * @param {string} stateDir - OpenClaw工作目录
@@ -427,8 +432,8 @@ function formatLogRecord(record, index) {
  */
 export async function saveSecurityScanReport(scanResult, records = [], stateDir, filename) {
   // Create report directory: workspace/security-reports
-  const reportDir = path.join(stateDir, 'workspace', 'security-reports');
-  
+  const reportDir = path.join(stateDir, "workspace", "security-reports");
+
   // Ensure directory exists
   try {
     await fs.mkdir(reportDir, { recursive: true });
@@ -438,7 +443,7 @@ export async function saveSecurityScanReport(scanResult, records = [], stateDir,
   }
 
   // Get date (extracted from scan result or filename)
-  const reportDate = scanResult.date || filename.replace('.jsonl', '');
+  const reportDate = scanResult.date || filename.replace(".jsonl", "");
   const reportName = `${reportDate}-security-report.txt`;
   const reportPath = path.join(reportDir, reportName);
 
@@ -447,7 +452,7 @@ export async function saveSecurityScanReport(scanResult, records = [], stateDir,
 
   // Save report
   try {
-    await fs.writeFile(reportPath, reportContent, 'utf-8');
+    await fs.writeFile(reportPath, reportContent, "utf-8");
   } catch (error) {
     console.error(`❌ Failed to save report ${reportPath}: ${error.message}`);
     throw error;
@@ -455,4 +460,3 @@ export async function saveSecurityScanReport(scanResult, records = [], stateDir,
 
   return reportPath;
 }
-
