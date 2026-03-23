@@ -25,6 +25,22 @@
         "type": "boolean",
         "description": "Watch config and AGENTS files for boundary drift"
       },
+      "skillGuard": {
+        "type": "object",
+        "description": "Periodically scan user-installed skills for security risks (local mode only)",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Enable periodic skill security scanning on gateway start"
+          },
+          "intervalMinutes": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Scan interval in minutes (default: 30)"
+          }
+        }
+      },
       "contextJudge": {
         "type": "object",
         "description": "Optional defaults for the /plugins/clawkeeper-watcher/context-judge HTTP route",
@@ -108,6 +124,10 @@
     "driftMonitor": {
       "label": "Drift Monitor",
       "help": "Warn when config or AGENTS rules drift after startup"
+    },
+    "skillGuard": {
+      "label": "Skill Guard",
+      "help": "Periodically scan installed skills under ~/.openclaw/skills/ for security risks"
     },
     "contextJudge": {
       "label": "Context Judge",

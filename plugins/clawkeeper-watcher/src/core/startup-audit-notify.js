@@ -38,9 +38,11 @@ function buildNotificationSummary(report, { event = "startup_audit", file = null
     .filter(Boolean);
 
   const subject =
-    event === "drift_alert"
-      ? `User OpenClaw drift alert detected ${findingCount} issue${findingCount === 1 ? "" : "s"}.`
-      : `User OpenClaw startup audit found ${findingCount} issue${findingCount === 1 ? "" : "s"}.`;
+    event === "skill_guard_alert"
+      ? `Skill Guard: "${fileText ?? "unknown"}" has ${findingCount} security issue${findingCount === 1 ? "" : "s"}.`
+      : event === "drift_alert"
+        ? `User OpenClaw drift alert detected ${findingCount} issue${findingCount === 1 ? "" : "s"}.`
+        : `User OpenClaw startup audit found ${findingCount} issue${findingCount === 1 ? "" : "s"}.`;
 
   const summaryText = [
     subject,
@@ -174,6 +176,23 @@ export async function notifyDriftAlertToUserBridge({
     mode,
     event: "drift_alert",
     file,
+    onlyRisky: true,
+  });
+}
+
+export async function notifySkillGuardAlertToUserBridge({
+  pluginConfig = {},
+  report,
+  logger,
+  skillName,
+}) {
+  return notifyReportToUserBridge({
+    pluginConfig,
+    report,
+    logger,
+    mode: "local",
+    event: "skill_guard_alert",
+    file: skillName,
     onlyRisky: true,
   });
 }

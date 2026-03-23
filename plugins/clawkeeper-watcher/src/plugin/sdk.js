@@ -9,6 +9,7 @@ import {
   createLLMOutputHook,
 } from "../core/interceptor.js";
 import { PLUGIN_DESCRIPTION, PLUGIN_ID, PLUGIN_NAME, VERSION } from "../core/metadata.js";
+import { startSkillGuard, stopSkillGuard } from "../core/skill-guard.js";
 import { notifyStartupAuditToUserBridge } from "../core/startup-audit-notify.js";
 import { resolveUserOpenClawStateDir } from "../core/state.js";
 import { installBundledSkill, registerCliCommands } from "./cli.js";
@@ -162,10 +163,16 @@ export const clawkeeperPlugin = {
         await startDriftMonitor(userOpenClawStateDir, pluginConfig, api.logger);
         api.logger.info(`[${PLUGIN_NAME}] drift monitor started for user OpenClaw`);
       }
+
+      if (pluginConfig.skillGuard?.enabled) {
+        await startSkillGuard(pluginConfig, api.logger);
+        api.logger.info(`[${PLUGIN_NAME}] skill guard started`);
+      }
     });
 
     api.on("gateway_stop", async () => {
       await stopDriftMonitor();
+      await stopSkillGuard();
     });
 
     api.logger.info(`[${PLUGIN_NAME}] v${VERSION} registered`);
