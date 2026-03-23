@@ -5,6 +5,7 @@ import { PLUGIN_DESCRIPTION, PLUGIN_ID, PLUGIN_NAME, VERSION } from '../core/met
 import { installBundledSkill, registerCliCommands } from './cli.js';
 import { resolveStateDir } from '../core/state.js';
 import { createContextJudgeHttpHandler } from './context-judge-http.js';
+import { notifyStartupAuditToUserBridge } from '../core/startup-audit-notify.js';
 import {
   createToolLoggerHook,
   createMessageReceivedHook,
@@ -133,6 +134,20 @@ export const clawkeeperPlugin = {
       const report = await runAudit(context);
       api.logger.info(`[${PLUGIN_NAME}] score=${report.score}/100`);
       api.logger.info(`[${PLUGIN_NAME}] layered=${context.skillInstalled ? 'plugin+skill' : 'plugin-only'}`);
+
+      try {
+        const notifyResult = await notifyStartupAuditToUserBridge({
+          pluginConfig,
+          report,
+          logger: api.logger,
+          mode,
+        });
+        if (notifyResult.sent) {
+          api.logger.info(`[${PLUGIN_NAME}] startup audit notification sent to user bridge`);
+        }
+      } catch (error) {
+        api.logger.warn(`[${PLUGIN_NAME}] startup audit notification failed: ${error.message}`);
+      }
 
       if (pluginConfig.autoHarden) {
         const result = await harden(stateDir, pluginConfig);
