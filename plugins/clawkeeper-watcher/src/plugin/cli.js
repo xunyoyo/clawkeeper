@@ -1,6 +1,3 @@
-import fs from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { createAuditContext, runAudit } from "../core/audit-engine.js";
 import { startDriftMonitor, stopDriftMonitor } from "../core/drift-monitor.js";
 import { harden } from "../core/hardening.js";
@@ -49,19 +46,6 @@ function requireLocalMode(mode, commandName) {
 export function registerCliCommands({ program, config }) {
   const mode = resolveCliMode(config);
   const root = program.command(PLUGIN_ID).description(`${PLUGIN_NAME} core security controls`);
-
-  root
-    .command("install")
-    .description("Install bundled runtime skill and print next steps (local only)")
-    .action(async () => {
-      if (!requireLocalMode(mode, "install")) {
-        return;
-      }
-      const userOpenClawStateDir = await resolveUserOpenClawStateDir();
-      await installBundledSkill(userOpenClawStateDir);
-      console.log("Clawkeeper-Watcher install completed.");
-      console.log("Next: openclaw clawkeeper-watcher audit");
-    });
 
   root
     .command("audit")
@@ -147,7 +131,6 @@ export function registerCliCommands({ program, config }) {
       const context = await createAuditContext(stateDir, config);
       const report = await runAudit(context);
       console.log(`Clawkeeper-Watcher score: ${report.score}/100`);
-      console.log(`Skill installed: ${context.skillInstalled ? "yes" : "no"}`);
       console.log(`Top threats: ${Object.keys(report.threatSummary).join(", ") || "none"}`);
     });
 
@@ -312,49 +295,4 @@ export function registerCliCommands({ program, config }) {
       const report = await scanSkill(target);
       console.log(opts.json ? formatJsonReport(report) : formatSkillScanReport(report));
     });
-
-  root
-    .command("skill")
-    .description("Manage the bundled skill")
-    .command("install")
-    .description("Install the bundled runtime rule skill (local only)")
-    .action(async () => {
-      if (!requireLocalMode(mode, "skill install")) {
-        return;
-      }
-      const userOpenClawStateDir = await resolveUserOpenClawStateDir();
-      await installBundledSkill(userOpenClawStateDir);
-    });
-}
-
-export async function installBundledSkill(targetStateDir) {
-  await runBundledScript("install.sh", {
-    OPENCLAW_HOME: targetStateDir,
-  });
-}
-
-async function runBundledScript(scriptName, envOverrides = {}) {
-  const currentFile = fileURLToPath(import.meta.url);
-  const skillDir = path.join(path.dirname(currentFile), "..", "..", "skill", "scripts", scriptName);
-  const { spawn } = await import("node:child_process");
-
-  await fs.access(skillDir);
-
-  await new Promise((resolve, reject) => {
-    const child = spawn("bash", [skillDir], {
-      stdio: "inherit",
-      env: {
-        ...process.env,
-        ...envOverrides,
-      },
-    });
-    child.on("exit", (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(`${scriptName} exited with code ${code}`));
-      }
-    });
-    child.on("error", reject);
-  });
 }

@@ -11,7 +11,7 @@ The plugin detects its runtime mode from `config.mode` or the `CLAWKEEPER_MODE` 
 | Context Judge HTTP endpoint                               | yes           | yes   |
 | Event logging (tool/message/LLM)                          | yes (passive) | yes   |
 | Audit / hardening / drift monitoring                      | -             | yes   |
-| Skill installation                                        | -             | yes   |
+| User Skill Guard / scan-skill                             | -             | yes   |
 | Read-only CLI commands (`status` / `logs` / `scan-skill`) | yes           | yes   |
 
 ## Installation
@@ -20,12 +20,6 @@ Install the plugin:
 
 ```sh
 npx openclaw plugins install -l .
-```
-
-Install the bundled runtime skill (local mode only):
-
-```sh
-npx openclaw clawkeeper-watcher skill install
 ```
 
 ## Commands
@@ -50,13 +44,11 @@ npx openclaw clawkeeper-watcher scan-skill <name-or-path>         # Scan a third
 The following commands are rejected in `remote` mode and must be run on the local side.
 
 ```sh
-npx openclaw clawkeeper-watcher install                           # Install the bundled skill
 npx openclaw clawkeeper-watcher audit                             # Run the security audit
 npx openclaw clawkeeper-watcher audit --json                      # Output JSON
 npx openclaw clawkeeper-watcher audit --fix                       # Auto-fix after the audit
 npx openclaw clawkeeper-watcher harden                            # Apply safe hardening
 npx openclaw clawkeeper-watcher monitor                           # Run drift monitoring in the foreground
-npx openclaw clawkeeper-watcher skill install                     # Install the bundled runtime skill
 npx openclaw clawkeeper-watcher rollback [backup]                 # Restore a backup
 ```
 
@@ -79,6 +71,7 @@ The response includes `mode` and `localEnhanced` so callers can distinguish the 
 - High-risk execution approval flow
 - Runtime rule-loading state
 - Third-party skill risk patterns
+- Periodic user Skill security scanning
 - Event logging -- automatically records tool calls, message traffic, and LLM interactions to `workspace/log/`
 - Context Judge -- exposes structured context decisioning over HTTP
 
@@ -117,7 +110,6 @@ Before publishing, confirm:
 - `npm test` passes
 - `npx openclaw clawkeeper-watcher audit` runs successfully in local mode
 - `npx openclaw clawkeeper-watcher scan-skill <path>` runs successfully
-- `skill/SKILL.md` stays aligned with the plugin commands
 
 ## Structure
 
@@ -129,10 +121,7 @@ plugins/clawkeeper-watcher/
     reporters/      # Console and JSON report formatting
     index.js
   skill/
-    SKILL.md
-    skill.json
-    configs/
-    scripts/
+    configs/        # Skill scanning rule library
   openclaw.plugin.json
   package.json
 ```

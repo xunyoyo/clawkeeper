@@ -41,25 +41,12 @@ export function getConfigPath(stateDir) {
   return path.join(stateDir, "openclaw.json");
 }
 
-export function getSkillInstallPath(stateDir) {
-  return path.join(stateDir, "skills", "clawkeeper-watcher");
-}
-
 export async function readJsonIfExists(filePath) {
   try {
     const raw = await fs.readFile(filePath, "utf-8");
     return JSON.parse(raw);
   } catch {
     return {};
-  }
-}
-
-export async function fileExists(filePath) {
-  try {
-    await fs.access(filePath);
-    return true;
-  } catch {
-    return false;
   }
 }
 

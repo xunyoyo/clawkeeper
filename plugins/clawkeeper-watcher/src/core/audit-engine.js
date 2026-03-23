@@ -1,12 +1,6 @@
 import { getControls } from "./controls.js";
 import { PLUGIN_NAME, VERSION } from "./metadata.js";
-import {
-  fileExists,
-  getConfigPath,
-  getSkillInstallPath,
-  getSoulPath,
-  readJsonIfExists,
-} from "./state.js";
+import { getConfigPath, getSoulPath, readJsonIfExists } from "./state.js";
 
 const SCORE_BY_SEVERITY = {
   CRITICAL: 20,
@@ -19,13 +13,10 @@ const SCORE_BY_SEVERITY = {
 export async function createAuditContext(stateDir, pluginConfig = {}) {
   const configPath = getConfigPath(stateDir);
   const config = await readJsonIfExists(configPath);
-  const skillDir = getSkillInstallPath(stateDir);
   return {
     stateDir,
     configPath,
     soulPath: getSoulPath(stateDir),
-    skillDir,
-    skillInstalled: await fileExists(skillDir),
     config,
     strictMode: Boolean(pluginConfig.strictMode),
   };

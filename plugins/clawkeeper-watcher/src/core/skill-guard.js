@@ -68,6 +68,9 @@ async function runSkillGuardCycle(pluginConfig, logger) {
 
   for (const entry of skillDirs) {
     const skillName = entry.name;
+    if (skillName === "clawkeeper-watcher") {
+      continue;
+    }
     currentSkillNames.add(skillName);
 
     let report;

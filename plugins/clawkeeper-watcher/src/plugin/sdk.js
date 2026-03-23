@@ -12,7 +12,7 @@ import { PLUGIN_DESCRIPTION, PLUGIN_ID, PLUGIN_NAME, VERSION } from "../core/met
 import { startSkillGuard, stopSkillGuard } from "../core/skill-guard.js";
 import { notifyStartupAuditToUserBridge } from "../core/startup-audit-notify.js";
 import { resolveUserOpenClawStateDir } from "../core/state.js";
-import { installBundledSkill, registerCliCommands } from "./cli.js";
+import { registerCliCommands } from "./cli.js";
 import { createContextJudgeHttpHandler } from "./context-judge-http.js";
 
 const VALID_MODES = new Set(["remote", "local"]);
@@ -124,21 +124,9 @@ export const clawkeeperPlugin = {
       }
 
       const userOpenClawStateDir = await resolveUserOpenClawStateDir();
-      let context = await createAuditContext(userOpenClawStateDir, pluginConfig);
-      if (!context.skillInstalled) {
-        try {
-          await installBundledSkill(userOpenClawStateDir);
-          context = await createAuditContext(userOpenClawStateDir, pluginConfig);
-          api.logger.info(`[${PLUGIN_NAME}] bundled skill installed for user OpenClaw`);
-        } catch (error) {
-          api.logger.warn(`[${PLUGIN_NAME}] failed to install bundled skill: ${error.message}`);
-        }
-      }
+      const context = await createAuditContext(userOpenClawStateDir, pluginConfig);
       const report = await runAudit(context);
       api.logger.info(`[${PLUGIN_NAME}] score=${report.score}/100`);
-      api.logger.info(
-        `[${PLUGIN_NAME}] layered=${context.skillInstalled ? "plugin+skill" : "plugin-only"}`,
-      );
 
       try {
         const notifyResult = await notifyStartupAuditToUserBridge({

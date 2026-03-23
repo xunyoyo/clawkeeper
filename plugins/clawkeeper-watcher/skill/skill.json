@@ -1,7 +1,0 @@
-{
-  "name": "clawkeeper-watcher",
-  "version": "0.1.0",
-  "description": "Minimal runtime rules for OpenClaw agents",
-  "entry": "SKILL.md",
-  "layer": "behavioral-guardrails"
-}

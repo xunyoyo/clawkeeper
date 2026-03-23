@@ -142,24 +142,5 @@ export function getControls() {
         return result.changed ? "AGENTS.md injected with runtime constitution" : null;
       },
     },
-    {
-      id: "skill.runtime-presence",
-      category: "skill",
-      severity: "LOW",
-      threat: "missing-llm-guardrails",
-      intent: "keep-plugin-and-skill-layered",
-      title: "Skill layer not installed",
-      describe: async (context) => {
-        if (context.skillInstalled) {
-          return null;
-        }
-        return {
-          description: "Plugin layer exists, but skill behavior layer has not yet been installed.",
-          evidence: { skillInstalled: false, expectedPath: context.skillDir },
-          remediation: "Run npx openclaw clawkeeper-watcher skill install",
-          autoFixable: false,
-        };
-      },
-    },
   ];
 }
