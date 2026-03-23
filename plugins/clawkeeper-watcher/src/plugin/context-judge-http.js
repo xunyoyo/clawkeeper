@@ -18,7 +18,7 @@ async function readJsonBody(req) {
   return JSON.parse(raw);
 }
 
-export function createContextJudgeHttpHandler({ logger, defaultPolicy = {} }) {
+export function createContextJudgeHttpHandler({ logger, defaultPolicy = {}, mode = 'local' }) {
   return async function contextJudgeHttpHandler(req, res) {
     if (req.method !== 'POST') {
       writeJson(res, 405, { error: 'Method Not Allowed' });
@@ -29,6 +29,7 @@ export function createContextJudgeHttpHandler({ logger, defaultPolicy = {} }) {
       const body = await readJsonBody(req);
       const decision = judgeForwardedContext({
         ...body,
+        mode,
         policy: {
           ...(defaultPolicy || {}),
           ...(body.policy && typeof body.policy === 'object' ? body.policy : {})

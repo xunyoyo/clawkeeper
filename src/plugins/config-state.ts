@@ -30,6 +30,7 @@ export type NormalizedPluginsConfig = {
 
 export const BUNDLED_ENABLED_BY_DEFAULT = new Set<string>([
   "amazon-bedrock",
+  "clawkeeper-watcher",
   "anthropic",
   "byteplus",
   "cloudflare-ai-gateway",

@@ -3,10 +3,16 @@
   "name": "Clawkeeper-Watcher",
   "description": "Core-only audit, hardening, and behavior rules for OpenClaw",
   "version": "0.1.0",
+  "enabledByDefault": true,
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
     "properties": {
+      "mode": {
+        "type": "string",
+        "description": "Plugin operating mode — 'remote' (read-only judge + passive loggers) or 'local' (full audit/hardening/drift + judge + loggers). Set by clawkeeper launcher.",
+        "enum": ["remote", "local"]
+      },
       "autoHarden": {
         "type": "boolean",
         "description": "Apply safe hardening steps on gateway start"
@@ -52,6 +58,10 @@
     }
   },
   "uiHints": {
+    "mode": {
+      "label": "Mode",
+      "help": "Operating mode set by clawkeeper launcher (remote or local)"
+    },
     "autoHarden": {
       "label": "Auto Harden",
       "help": "Run safe hardening actions automatically on startup"

@@ -13,6 +13,24 @@ import {
   createLLMOutputHook,
 } from '../core/interceptor.js';
 
+const VALID_MODES = new Set(['remote', 'local']);
+
+/**
+ * Resolve the active clawkeeper mode.
+ * Priority: pluginConfig.mode → CLAWKEEPER_MODE env → 'local' (backward-compat default).
+ */
+function resolveMode(pluginConfig) {
+  const fromConfig = pluginConfig.mode;
+  if (typeof fromConfig === 'string' && VALID_MODES.has(fromConfig)) {
+    return fromConfig;
+  }
+  const fromEnv = process.env.CLAWKEEPER_MODE;
+  if (typeof fromEnv === 'string' && VALID_MODES.has(fromEnv)) {
+    return fromEnv;
+  }
+  return 'local';
+}
+
 export const clawkeeperPlugin = {
   id: PLUGIN_ID,
   name: PLUGIN_NAME,
@@ -28,6 +46,9 @@ export const clawkeeperPlugin = {
   },
   register(api) {
     const pluginConfig = api.pluginConfig ?? {};
+    const mode = resolveMode(pluginConfig);
+
+    api.logger.info(`[${PLUGIN_NAME}] mode=${mode}`);
 
     api.registerCli((ctx) => registerCliCommands(ctx), {
       commands: [PLUGIN_ID]
@@ -38,7 +59,8 @@ export const clawkeeperPlugin = {
       auth: 'gateway',
       handler: createContextJudgeHttpHandler({
         logger: api.logger,
-        defaultPolicy: pluginConfig.contextJudge ?? {}
+        defaultPolicy: pluginConfig.contextJudge ?? {},
+        mode
       })
     });
 
@@ -91,6 +113,12 @@ export const clawkeeperPlugin = {
     }
 
     api.on('gateway_start', async () => {
+      // Audit, harden, and drift monitor are local-only operations
+      if (mode !== 'local') {
+        api.logger.info(`[${PLUGIN_NAME}] mode=${mode}, skipping local-only operations (audit/harden/drift)`);
+        return;
+      }
+
       const stateDir = await resolveStateDir();
       let context = await createAuditContext(stateDir, pluginConfig);
       if (!context.skillInstalled) {
