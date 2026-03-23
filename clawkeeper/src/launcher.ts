@@ -1,7 +1,7 @@
 /**
  * Core launcher logic — prepares the environment and delegates to OpenClaw.
  */
-import { execFileSync, type SpawnSyncReturns } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -23,10 +23,7 @@ type OpenClawTarget =
  * Prepare a mode for launch: create directories, write default config, bootstrap workspace.
  * Returns the resolved config and environment variables without actually launching.
  */
-export function prepare(
-  mode: ClawkeeperMode,
-  rootDir?: string,
-): LauncherPrepareResult {
+export function prepare(mode: ClawkeeperMode, rootDir?: string): LauncherPrepareResult {
   const modeConfig = resolveModeConfig(mode, rootDir);
   const createdDirs = ensureModeDirectories(modeConfig);
   const createdFiles: string[] = [];
@@ -119,7 +116,7 @@ export function launch(
     process.exit(0);
   } catch (err: unknown) {
     // execFileSync throws on non-zero exit. Extract the exit code.
-    const spawnErr = err as SpawnSyncReturns<Buffer> & { status?: number | null };
+    const spawnErr = err as { status?: number | null };
     const exitCode = spawnErr.status ?? 1;
     process.exit(exitCode);
   }

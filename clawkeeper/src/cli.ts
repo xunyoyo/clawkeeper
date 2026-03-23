@@ -8,7 +8,6 @@
  *   clawkeeper init <mode>                 Initialize mode directory without running
  *   clawkeeper status                      Show status of both modes
  */
-import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { DEFAULT_ROOT_DIR } from "./constants.js";
@@ -73,10 +72,14 @@ function cmdInit(mode: ClawkeeperMode, rootDir: string): void {
   console.log(`  port:      ${result.modeConfig.gatewayPort}`);
 
   if (result.created.dirs.length > 0) {
-    console.log(`  created ${result.created.dirs.length} director${result.created.dirs.length === 1 ? "y" : "ies"}`);
+    console.log(
+      `  created ${result.created.dirs.length} director${result.created.dirs.length === 1 ? "y" : "ies"}`,
+    );
   }
   if (result.created.files.length > 0) {
-    console.log(`  created ${result.created.files.length} file${result.created.files.length === 1 ? "" : "s"}`);
+    console.log(
+      `  created ${result.created.files.length} file${result.created.files.length === 1 ? "" : "s"}`,
+    );
   }
 }
 

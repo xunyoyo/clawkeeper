@@ -3,6 +3,7 @@
 ## Available Tools
 
 ### context-judge
+
 - **Route**: `POST /plugins/clawkeeper-watcher/context-judge`
 - **Purpose**: Evaluate context payloads for risk and relevance
 - **Input**: Context payload with metadata

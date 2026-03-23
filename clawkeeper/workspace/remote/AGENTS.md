@@ -32,6 +32,7 @@ POST /plugins/clawkeeper-watcher/context-judge
 ```
 
 Response structure:
+
 ```json
 {
   "verdict": "approve" | "flag" | "reject",

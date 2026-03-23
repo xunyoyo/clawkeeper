@@ -25,11 +25,7 @@ export const WATCHER_PLUGIN_ID = "clawkeeper-watcher";
 export const CONTEXT_JUDGE_ROUTE = `/plugins/${WATCHER_PLUGIN_ID}/context-judge`;
 
 /** Workspace template files that get bootstrapped. */
-export const WORKSPACE_TEMPLATE_FILES = [
-  "AGENTS.md",
-  "TOOLS.md",
-  "SOUL.md",
-] as const;
+export const WORKSPACE_TEMPLATE_FILES = ["AGENTS.md", "TOOLS.md", "SOUL.md"] as const;
 
 /** Environment variable names used to redirect OpenClaw paths. */
 export const ENV_KEYS = {

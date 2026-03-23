@@ -3,7 +3,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { CONFIG_FILENAME, DEFAULT_GATEWAY_PORTS, DEFAULT_ROOT_DIR, MODE_SUBDIRS } from "./constants.js";
+import { CONFIG_FILENAME, DEFAULT_GATEWAY_PORTS, DEFAULT_ROOT_DIR } from "./constants.js";
 import type { ClawkeeperMode, ClawkeeperModeConfig } from "./types.js";
 
 /**

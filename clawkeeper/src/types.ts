@@ -45,10 +45,13 @@ export type ClawkeeperConfig = {
     load?: {
       paths?: string[];
     };
-    entries?: Record<string, {
-      enabled?: boolean;
-      config?: Record<string, unknown>;
-    }>;
+    entries?: Record<
+      string,
+      {
+        enabled?: boolean;
+        config?: Record<string, unknown>;
+      }
+    >;
   };
 };
 
