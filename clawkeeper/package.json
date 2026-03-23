@@ -1,0 +1,24 @@
+{
+  "name": "clawkeeper",
+  "version": "0.1.0",
+  "description": "Clawkeeper-watcher launcher — isolated runtime wrapper for OpenClaw",
+  "type": "module",
+  "bin": {
+    "clawkeeper": "./src/cli.ts"
+  },
+  "scripts": {
+    "dev": "bun src/cli.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "commander": "^13.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "@types/node": "^22.0.0"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}
