@@ -11,10 +11,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import { DEFAULT_ROOT_DIR } from "../src/constants.js";
-import { isModeInitialized, resolveModeConfig } from "../src/dirs.js";
-import { launch, prepare } from "../src/launcher.js";
-import { VALID_MODES, type ClawkeeperMode } from "../src/types.js";
+import { DEFAULT_ROOT_DIR } from "./constants.js";
+import { isModeInitialized, resolveModeConfig } from "./dirs.js";
+import { launch, prepare } from "./launcher.js";
+import { VALID_MODES, type ClawkeeperMode } from "./types.js";
 
 const VERSION = "0.1.0";
 
