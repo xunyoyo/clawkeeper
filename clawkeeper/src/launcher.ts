@@ -14,6 +14,11 @@ import type { ClawkeeperMode, ClawkeeperModeConfig, LauncherPrepareResult } from
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+/** Discriminated target describing how to invoke OpenClaw. */
+type OpenClawTarget =
+  | { kind: "node-script"; scriptPath: string }
+  | { kind: "cli-command"; command: string };
+
 /**
  * Prepare a mode for launch: create directories, write default config, bootstrap workspace.
  * Returns the resolved config and environment variables without actually launching.
@@ -59,19 +64,19 @@ function buildEnv(modeConfig: ClawkeeperModeConfig): Record<string, string> {
 }
 
 /**
- * Resolve the path to the openclaw binary.
+ * Resolve the OpenClaw launch target.
  * Tries (in order):
- *  1. The repo-local openclaw.mjs (for dev)
- *  2. `openclaw` on PATH (falls back to bare command name)
+ *  1. The repo-local openclaw.mjs (for dev) → node-script
+ *  2. `openclaw` on PATH (falls back to bare command) → cli-command
  */
-function resolveOpenClawBin(): string {
+function resolveOpenClawTarget(): OpenClawTarget {
   // In the repo, openclaw.mjs is at the repo root.
   // From clawkeeper/src/, that's ../../openclaw.mjs
   const repoLocal = path.resolve(__dirname, "..", "..", "openclaw.mjs");
   if (fs.existsSync(repoLocal)) {
-    return repoLocal;
+    return { kind: "node-script", scriptPath: repoLocal };
   }
-  return "openclaw";
+  return { kind: "cli-command", command: "openclaw" };
 }
 
 /**
@@ -84,7 +89,7 @@ export function launch(
   options?: { rootDir?: string },
 ): never {
   const result = prepare(mode, options?.rootDir);
-  const bin = resolveOpenClawBin();
+  const target = resolveOpenClawTarget();
 
   const mergedEnv: Record<string, string | undefined> = {
     ...process.env,
@@ -98,11 +103,19 @@ export function launch(
   try {
     // Use execFileSync to maintain stdio passthrough and signal forwarding.
     // The child inherits stdio, so the user sees openclaw output directly.
-    execFileSync(process.execPath, [bin, ...args], {
-      env: mergedEnv,
-      stdio: "inherit",
-      cwd: process.cwd(),
-    });
+    if (target.kind === "node-script") {
+      execFileSync(process.execPath, [target.scriptPath, ...args], {
+        env: mergedEnv,
+        stdio: "inherit",
+        cwd: process.cwd(),
+      });
+    } else {
+      execFileSync(target.command, args, {
+        env: mergedEnv,
+        stdio: "inherit",
+        cwd: process.cwd(),
+      });
+    }
     process.exit(0);
   } catch (err: unknown) {
     // execFileSync throws on non-zero exit. Extract the exit code.
