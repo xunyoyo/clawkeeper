@@ -76,7 +76,7 @@
     },
     "contextJudge": {
       "label": "Context Judge",
-      "help": "Default policy for the /plugins/clawkeeper/context-judge HTTP route"
+      "help": "Default policy for the /plugins/clawkeeper-watcher/context-judge HTTP route"
     }
   }
 }

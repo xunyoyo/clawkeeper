@@ -13,22 +13,52 @@ import { PLUGIN_ID, PLUGIN_NAME } from '../core/metadata.js';
 import { readLogFile, getLogFiles, getTodayLogPath } from '../core/interceptor.js';
 import { scanLogsForSecurityRisks, formatScanResults, saveSecurityScanReport } from '../core/security-scanner.js';
 
+const VALID_MODES = new Set(['remote', 'local']);
+
+/**
+ * Resolve the active clawkeeper mode for CLI context.
+ * Same semantics as sdk.js resolveMode: config.mode → CLAWKEEPER_MODE env → 'local'.
+ */
+function resolveCliMode(config) {
+  const fromConfig = config?.mode;
+  if (typeof fromConfig === 'string' && VALID_MODES.has(fromConfig)) {
+    return fromConfig;
+  }
+  const fromEnv = process.env.CLAWKEEPER_MODE;
+  if (typeof fromEnv === 'string' && VALID_MODES.has(fromEnv)) {
+    return fromEnv;
+  }
+  return 'local';
+}
+
+function requireLocalMode(mode, commandName) {
+  if (mode !== 'local') {
+    console.error(`[${PLUGIN_NAME}] "${commandName}" is only available in local mode (current: ${mode}).`);
+    console.error(`[${PLUGIN_NAME}] Please run this command on the local clawkeeper instance.`);
+    return false;
+  }
+  return true;
+}
+
 export function registerCliCommands({ program, config }) {
+  const mode = resolveCliMode(config);
   const root = program.command(PLUGIN_ID).description(`${PLUGIN_NAME} core security controls`);
 
   root.command('install')
-    .description('Install bundled runtime skill and print next steps')
+    .description('Install bundled runtime skill and print next steps (local only)')
     .action(async () => {
+      if (!requireLocalMode(mode, 'install')) return;
       await installBundledSkill();
       console.log('Clawkeeper-Watcher install completed.');
       console.log('Next: openclaw clawkeeper-watcher audit');
     });
 
   root.command('audit')
-    .description('Run the core security audit')
+    .description('Run the core security audit (local only)')
     .option('--json', 'Output JSON')
     .option('--fix', 'Apply safe fixes after audit')
     .action(async (...args) => {
+      if (!requireLocalMode(mode, 'audit')) return;
       const opts = args[0] ?? {};
       const stateDir = await resolveStateDir();
       const context = await createAuditContext(stateDir, config);
@@ -42,8 +72,9 @@ export function registerCliCommands({ program, config }) {
     });
 
   root.command('harden')
-    .description('Apply safe hardening changes')
+    .description('Apply safe hardening changes (local only)')
     .action(async () => {
+      if (!requireLocalMode(mode, 'harden')) return;
       const stateDir = await resolveStateDir();
       const result = await harden(stateDir, config);
       console.log(`Hardening applied. Backup: ${result.backupDir}`);
@@ -53,8 +84,9 @@ export function registerCliCommands({ program, config }) {
     });
 
   root.command('monitor')
-    .description('Run drift monitoring in the foreground')
+    .description('Run drift monitoring in the foreground (local only)')
     .action(async () => {
+      if (!requireLocalMode(mode, 'monitor')) return;
       const stateDir = await resolveStateDir();
       await startDriftMonitor(stateDir, config, console);
       console.log('Clawkeeper-Watcher drift monitor is running. Press Ctrl+C to stop.');
@@ -70,9 +102,10 @@ export function registerCliCommands({ program, config }) {
     });
 
   root.command('rollback')
-    .description('Restore the latest or selected backup')
+    .description('Restore the latest or selected backup (local only)')
     .argument('[backup]', 'Backup folder name')
     .action(async (...args) => {
+      if (!requireLocalMode(mode, 'rollback')) return;
       const stateDir = await resolveStateDir();
       const result = await rollback(stateDir, args[0]);
       console.log(`Rollback restored from: ${result.backupDir}`);
@@ -236,8 +269,9 @@ export function registerCliCommands({ program, config }) {
   root.command('skill')
     .description('Manage the bundled skill')
     .command('install')
-    .description('Install the bundled runtime rule skill')
+    .description('Install the bundled runtime rule skill (local only)')
     .action(async () => {
+      if (!requireLocalMode(mode, 'skill install')) return;
       await installBundledSkill();
     });
 }

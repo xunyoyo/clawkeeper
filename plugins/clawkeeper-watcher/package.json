@@ -11,10 +11,7 @@
     "src/",
     "skill/",
     "openclaw.plugin.json",
-    "README.md",
-    "CHANGELOG.md",
-    "LICENSE",
-    "install.sh"
+    "README.md"
   ],
   "scripts": {
     "test": "node --test",

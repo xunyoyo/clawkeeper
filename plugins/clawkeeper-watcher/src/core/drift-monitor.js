@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import { createAuditContext, runAudit } from './audit-engine.js';
 
-let watchers = [];
+/** @type {{ file: string, listener: Function }[]} */
+let subscriptions = [];
 const watchTimers = new Map();
 
 export async function startDriftMonitor(stateDir, pluginConfig = {}, logger = console) {
@@ -10,8 +11,7 @@ export async function startDriftMonitor(stateDir, pluginConfig = {}, logger = co
   const context = await createAuditContext(stateDir, pluginConfig);
   for (const file of [context.configPath, context.soulPath]) {
     try {
-      // Use watchFile for cross-platform stability with debouncing
-      const fileWatcher = fs.watchFile(file, { interval: 1000 }, async (curr, prev) => {
+      const listener = async (curr, prev) => {
         // Skip if file content hasn't actually changed (same mtime and size)
         if (curr.mtime === prev.mtime && curr.size === prev.size) {
           return;
@@ -37,8 +37,11 @@ export async function startDriftMonitor(stateDir, pluginConfig = {}, logger = co
         }, 500);
 
         watchTimers.set(fileKey, timer);
-      });
-      watchers.push(fileWatcher);
+      };
+
+      // Use watchFile for cross-platform stability with debouncing
+      fs.watchFile(file, { interval: 1000 }, listener);
+      subscriptions.push({ file, listener });
     } catch {
       // best effort
     }
@@ -46,8 +49,23 @@ export async function startDriftMonitor(stateDir, pluginConfig = {}, logger = co
 }
 
 export async function stopDriftMonitor() {
-  for (const watcher of watchers) watcher.close();
-  watchers = [];
-  for (const timer of watchTimers.values()) clearTimeout(timer);
+  // Unbind all file watchers (best-effort per subscription)
+  for (const sub of subscriptions) {
+    try {
+      fs.unwatchFile(sub.file, sub.listener);
+    } catch {
+      // best effort — don't interrupt remaining cleanup
+    }
+  }
+  subscriptions = [];
+
+  // Clear all debounce timers
+  for (const timer of watchTimers.values()) {
+    try {
+      clearTimeout(timer);
+    } catch {
+      // best effort
+    }
+  }
   watchTimers.clear();
 }
