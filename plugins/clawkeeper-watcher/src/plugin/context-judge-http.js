@@ -1,6 +1,7 @@
 import { resolveAgentAnomaly } from "../core/agent-profiler.js";
 import { judgeForwardedContext } from "../core/context-judge.js";
 import { appendDecisionMemory } from "../core/decision-memory.js";
+import { resolveIntentDrift } from "../core/intent-drift.js";
 import { resolveFingerprint, RISK_RANK } from "../core/risk-fingerprint.js";
 
 function writeJson(res, statusCode, payload) {
@@ -76,6 +77,24 @@ export function createContextJudgeHttpHandler({
           }
         } catch (error) {
           logger.warn(`[Clawkeeper-Watcher] agent profiling failed: ${error.message}`);
+        }
+      }
+
+      // ── Semantic intent drift detection ──
+      if (contextJudgeConfig.intentDrift?.enabled) {
+        try {
+          const intentDrift = resolveIntentDrift({
+            body,
+            config: contextJudgeConfig,
+          });
+          if (intentDrift) {
+            decision.intentDrift = intentDrift;
+            if ((RISK_RANK[intentDrift.severity] ?? 0) > (RISK_RANK[decision.riskLevel] ?? 0)) {
+              decision.riskLevel = intentDrift.severity;
+            }
+          }
+        } catch (error) {
+          logger.warn(`[Clawkeeper-Watcher] intent drift detection failed: ${error.message}`);
         }
       }
 

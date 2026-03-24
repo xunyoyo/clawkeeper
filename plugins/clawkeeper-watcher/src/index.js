@@ -11,6 +11,7 @@ export {
   getCachedProfiles,
   invalidateProfileCache,
 } from "./core/agent-profiler.js";
+export { resolveIntentDrift } from "./core/intent-drift.js";
 export {
   RISK_RANK,
   resolveFingerprint,

@@ -120,6 +120,23 @@
                 "description": "Severity level to assign when the agent uses a tool never seen in baseline (default: medium)"
               }
             }
+          },
+          "intentDrift": {
+            "type": "object",
+            "description": "Semantic intent drift detection. Compares the user's original intent against the tool call chain to detect when actions diverge from what was requested.",
+            "additionalProperties": false,
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "description": "Enable semantic intent drift detection (default: false)"
+              },
+              "threshold": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Drift score threshold (0-1) above which a drift warning is generated (default: 0.4)"
+              }
+            }
           }
         }
       },
@@ -192,6 +209,10 @@
     "contextJudge.agentProfiling": {
       "label": "Agent Profiling",
       "help": "Detect per-agent behavior drift from historical event-log baselines"
+    },
+    "contextJudge.intentDrift": {
+      "label": "Intent Drift",
+      "help": "Detect when tool calls semantically drift from the user's original intent"
     },
     "notify": {
       "label": "Notifications",
