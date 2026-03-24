@@ -1,4 +1,6 @@
 import { judgeForwardedContext } from "../core/context-judge.js";
+import { appendDecisionMemory } from "../core/decision-memory.js";
+import { resolveFingerprint } from "../core/risk-fingerprint.js";
 
 function writeJson(res, statusCode, payload) {
   res.statusCode = statusCode;
@@ -18,7 +20,12 @@ async function readJsonBody(req) {
   return JSON.parse(raw);
 }
 
-export function createContextJudgeHttpHandler({ logger, defaultPolicy = {}, mode = "local" }) {
+export function createContextJudgeHttpHandler({
+  logger,
+  defaultPolicy = {},
+  mode = "local",
+  contextJudgeConfig = {},
+}) {
   return async function contextJudgeHttpHandler(req, res) {
     if (req.method !== "POST") {
       writeJson(res, 405, { error: "Method Not Allowed" });
@@ -35,9 +42,36 @@ export function createContextJudgeHttpHandler({ logger, defaultPolicy = {}, mode
           ...(body.policy && typeof body.policy === "object" ? body.policy : {}),
         },
       });
+
+      // ── Cross-session risk fingerprint matching (remote mode only) ──
+      if (mode === "remote") {
+        try {
+          const fingerprint = await resolveFingerprint({
+            body,
+            decision,
+            config: contextJudgeConfig,
+          });
+          if (fingerprint) {
+            decision.fingerprint = fingerprint;
+          }
+        } catch (error) {
+          logger.warn(`[Clawkeeper-Watcher] fingerprint matching failed: ${error.message}`);
+        }
+      }
+
       logger.info(
         `[Clawkeeper-Watcher] context-judge decision=${decision.decision} stopReason=${decision.stopReason}`,
       );
+      try {
+        await appendDecisionMemory({
+          mode,
+          body,
+          decision,
+          logger,
+        });
+      } catch (error) {
+        logger.warn(`[Clawkeeper-Watcher] decision memory write failed: ${error.message}`);
+      }
       writeJson(res, 200, decision);
     } catch (error) {
       logger.warn(`[Clawkeeper-Watcher] context-judge request failed: ${error.message}`);

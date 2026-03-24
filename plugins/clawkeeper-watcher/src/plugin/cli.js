@@ -3,6 +3,7 @@ import { startDriftMonitor, stopDriftMonitor } from "../core/drift-monitor.js";
 import { harden } from "../core/hardening.js";
 import { readLogFile, getLogFiles, getTodayLogPath } from "../core/interceptor.js";
 import { PLUGIN_ID, PLUGIN_NAME } from "../core/metadata.js";
+import { getCachedFingerprintMap, buildFingerprintReport } from "../core/risk-fingerprint.js";
 import { rollback } from "../core/rollback.js";
 import {
   scanLogsForSecurityRisks,
@@ -294,5 +295,36 @@ export function registerCliCommands({ program, config }) {
       const opts = args[1] ?? {};
       const report = await scanSkill(target);
       console.log(opts.json ? formatJsonReport(report) : formatSkillScanReport(report));
+    });
+
+  root
+    .command("fingerprints")
+    .description("Show known cross-session risk fingerprints from decision memory")
+    .option("--days <number>", "Lookback window in days", "7")
+    .option("--min <number>", "Minimum occurrences to display", "2")
+    .option("--json", "Output JSON")
+    .action(async (...args) => {
+      const opts = args[0] ?? {};
+      const lookbackDays = Math.max(1, parseInt(opts.days, 10) || 7);
+      const minOccurrences = Math.max(1, parseInt(opts.min, 10) || 2);
+
+      const fingerprintMap = await getCachedFingerprintMap(lookbackDays);
+
+      if (opts.json) {
+        const qualified = [...fingerprintMap.values()]
+          .filter((fp) => fp.count >= minOccurrences)
+          .toSorted((a, b) => b.count - a.count)
+          .map((fp) => ({
+            ...fp,
+            sessionCount: fp.sessions.size,
+            sessions: [...fp.sessions],
+          }));
+        console.log(
+          JSON.stringify({ lookbackDays, minOccurrences, fingerprints: qualified }, null, 2),
+        );
+      } else {
+        console.log(buildFingerprintReport(fingerprintMap, minOccurrences));
+        console.log(`\nLookback: ${lookbackDays} day(s) | Min occurrences: ${minOccurrences}`);
+      }
     });
 }

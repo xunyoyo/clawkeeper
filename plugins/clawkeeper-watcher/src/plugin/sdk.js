@@ -63,6 +63,7 @@ export const clawkeeperPlugin = {
         logger: api.logger,
         defaultPolicy: pluginConfig.contextJudge ?? {},
         mode,
+        contextJudgeConfig: pluginConfig.contextJudge ?? {},
       }),
     });
 

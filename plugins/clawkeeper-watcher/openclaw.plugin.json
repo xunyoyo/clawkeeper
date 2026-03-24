@@ -68,6 +68,27 @@
           "treatCommandExecutionAsHighRisk": {
             "type": "boolean",
             "description": "Whether exec/bash/shell should be treated as high risk"
+          },
+          "fingerprint": {
+            "type": "object",
+            "description": "Cross-session risk fingerprint matching. When enabled, the context-judge compares incoming requests against historical decision patterns and attaches warnings for recurring risks (remote mode only).",
+            "additionalProperties": false,
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "description": "Enable cross-session risk fingerprint matching (remote mode only, default: false)"
+              },
+              "lookbackDays": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Number of days of decision history to scan for fingerprints (default: 7)"
+              },
+              "minOccurrences": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Minimum number of matching historical decisions before a fingerprint is flagged (default: 2)"
+              }
+            }
           }
         }
       },
@@ -132,6 +153,10 @@
     "contextJudge": {
       "label": "Context Judge",
       "help": "Default policy for the /plugins/clawkeeper-watcher/context-judge HTTP route"
+    },
+    "contextJudge.fingerprint": {
+      "label": "Risk Fingerprints",
+      "help": "Detect recurring risk patterns across sessions using decision memory"
     },
     "notify": {
       "label": "Notifications",
