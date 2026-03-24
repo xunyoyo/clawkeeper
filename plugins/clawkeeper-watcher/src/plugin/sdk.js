@@ -1,3 +1,4 @@
+import { invalidateProfileCache } from "../core/agent-profiler.js";
 import { createAuditContext, runAudit } from "../core/audit-engine.js";
 import { startDriftMonitor, stopDriftMonitor } from "../core/drift-monitor.js";
 import { harden } from "../core/hardening.js";
@@ -160,6 +161,7 @@ export const clawkeeperPlugin = {
     });
 
     api.on("gateway_stop", async () => {
+      invalidateProfileCache();
       await stopDriftMonitor();
       await stopSkillGuard();
     });

@@ -89,6 +89,37 @@
                 "description": "Minimum number of matching historical decisions before a fingerprint is flagged (default: 2)"
               }
             }
+          },
+          "agentProfiling": {
+            "type": "object",
+            "description": "Agent behavioral profiling. Build per-agent baselines from historical event logs and attach warnings when the current behavior deviates significantly.",
+            "additionalProperties": false,
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "description": "Enable agent behavioral profiling (default: false)"
+              },
+              "lookbackDays": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Days of event history to use for each agent baseline (default: 7)"
+              },
+              "toolDeviationThreshold": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Multiplier threshold for per-tool usage spikes against baseline (default: 3.0)"
+              },
+              "tokenDeviationThreshold": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Multiplier threshold for token-per-call spikes against baseline (default: 2.5)"
+              },
+              "novelToolSeverity": {
+                "type": "string",
+                "enum": ["low", "medium", "high"],
+                "description": "Severity level to assign when the agent uses a tool never seen in baseline (default: medium)"
+              }
+            }
           }
         }
       },
@@ -157,6 +188,10 @@
     "contextJudge.fingerprint": {
       "label": "Risk Fingerprints",
       "help": "Detect recurring risk patterns across sessions using decision memory"
+    },
+    "contextJudge.agentProfiling": {
+      "label": "Agent Profiling",
+      "help": "Detect per-agent behavior drift from historical event-log baselines"
     },
     "notify": {
       "label": "Notifications",
