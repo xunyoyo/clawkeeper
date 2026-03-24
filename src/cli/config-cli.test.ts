@@ -424,6 +424,28 @@ describe("config cli", () => {
       expect(written.gateway?.auth).toEqual({ mode: "{bad" });
     });
 
+    it("preserves bare URLs as raw strings when strict mode is off", async () => {
+      const resolved: OpenClawConfig = { gateway: { port: 18789 } };
+      setSnapshot(resolved, resolved);
+
+      await runConfigCommand([
+        "config",
+        "set",
+        "plugins.entries.clawkeeper-watcher.config.notify.userBridge.url",
+        "http://127.0.0.1:18889",
+      ]);
+
+      expect(mockWriteConfigFile).toHaveBeenCalledTimes(1);
+      const written = mockWriteConfigFile.mock.calls[0]?.[0];
+      expect(
+        (
+          written.plugins?.entries?.["clawkeeper-watcher"] as
+            | { config?: { notify?: { userBridge?: { url?: string } } } }
+            | undefined
+        )?.config?.notify?.userBridge?.url,
+      ).toBe("http://127.0.0.1:18889");
+    });
+
     it("throws when strict parsing is enabled via --strict-json", async () => {
       await expect(
         runConfigCommand(["config", "set", "gateway.auth.mode", "{bad", "--strict-json"]),

@@ -145,7 +145,10 @@ export function judgeForwardedContext(input = {}) {
     lastUserIndex >= 0 ? normalizedMessages.slice(lastUserIndex) : normalizedMessages;
   const lastUser = lastMessageByRole(normalizedMessages, "user");
   const toolMessages = activeMessages.filter(
-    (message) => message.toolName && message.toolName !== "clawbands_respond",
+    (message) =>
+      message.toolName &&
+      message.toolName !== "clawbands_respond" &&
+      message.toolName !== "clawkeeper_bands_respond",
   );
   const toolCount = toolMessages.length;
   const toolNames = new Set(

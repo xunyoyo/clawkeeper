@@ -249,7 +249,7 @@ function summarizeForwardedContextForProfiling(body = {}, decision = {}) {
   const toolCounts = new Map();
   for (const message of activeMessages) {
     const toolName = normalizeToolName(message.toolName || message.name);
-    if (!toolName || toolName === "clawbands_respond") {
+    if (!toolName || toolName === "clawbands_respond" || toolName === "clawkeeper_bands_respond") {
       continue;
     }
     toolCounts.set(toolName, (toolCounts.get(toolName) ?? 0) + 1);

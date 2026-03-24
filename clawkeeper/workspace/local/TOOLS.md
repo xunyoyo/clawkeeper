@@ -17,7 +17,7 @@
 
 ### startup-audit-bridge
 
-- **Purpose**: Forward risky startup audit summaries back to the user's OpenClaw when a clawbands bridge is configured
+- **Purpose**: Forward risky startup audit summaries back to the user's OpenClaw when a `clawkeeper-bands` plugin is configured on the receiving side
 - **Scope**: Summary-only forwarding of startup audit results
 - **Output**: Notification payload with score, counts, top findings, and next action
 

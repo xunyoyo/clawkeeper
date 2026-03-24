@@ -166,6 +166,13 @@ function parseValue(raw: string, opts: ConfigSetParseOpts): unknown {
     }
   }
 
+  // Bare URLs like http://127.0.0.1:18789 are common config values, but JSON5
+  // can misinterpret their ":" / "//" structure during non-strict parsing.
+  // Treat URL-like inputs as raw strings unless the caller opted into strict JSON.
+  if (/^[a-z][a-z0-9+.-]*:\/\/\S+$/i.test(trimmed)) {
+    return raw;
+  }
+
   try {
     return JSON5.parse(trimmed);
   } catch {

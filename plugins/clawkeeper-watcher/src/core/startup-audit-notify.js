@@ -1,4 +1,4 @@
-const DEFAULT_USER_BRIDGE_PATH = "/plugins/clawbands/clawkeeper-startup-audit";
+const DEFAULT_USER_BRIDGE_PATH = "/plugins/clawkeeper-bands/clawkeeper-startup-audit";
 const DEFAULT_TIMEOUT_MS = 10_000;
 
 function normalizePath(value) {

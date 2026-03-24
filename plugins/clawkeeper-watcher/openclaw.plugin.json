@@ -147,12 +147,12 @@
         "properties": {
           "userBridge": {
             "type": "object",
-            "description": "Optional clawbands bridge on the user's OpenClaw that receives startup audit notifications",
+            "description": "Optional clawkeeper-bands plugin on the user's OpenClaw that receives startup audit notifications",
             "additionalProperties": false,
             "properties": {
               "enabled": {
                 "type": "boolean",
-                "description": "Whether to forward risky local startup audits to the user's OpenClaw clawbands bridge"
+                "description": "Whether to forward risky local startup audits to the user's OpenClaw clawkeeper-bands plugin"
               },
               "url": {
                 "type": "string",
@@ -164,7 +164,7 @@
               },
               "path": {
                 "type": "string",
-                "description": "Relative path for the clawbands startup audit notification route"
+                "description": "Relative path for the clawkeeper-bands startup audit notification route"
               },
               "timeoutMs": {
                 "type": "integer",
@@ -216,7 +216,7 @@
     },
     "notify": {
       "label": "Notifications",
-      "help": "Forward risky local startup audits to the user's OpenClaw clawbands bridge"
+      "help": "Forward risky local startup audits to the user's OpenClaw clawkeeper-bands plugin"
     }
   }
 }

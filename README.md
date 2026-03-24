@@ -54,7 +54,7 @@ Local mode is the governance and remediation side. It is designed for:
 
 - local context judgment with local-side evidence and `localEnhanced: true`
 - startup audit against the user's runtime state under `~/.openclaw`
-- optional startup audit summaries forwarded back through a clawbands bridge
+- optional startup audit summaries forwarded back through the user-side `clawkeeper-bands` plugin
 - safe auto hardening for explicitly auto-fixable issues only
 - drift monitoring for key config and rules files with deduplicated high-severity alerts
 - runtime governance records for decisions, audits, hardening runs, and drift detections
@@ -114,7 +114,7 @@ The local side governs the user's runtime state, not just Clawkeeper's own launc
 ### Startup Audit
 
 On gateway start in local mode, the watcher audits the user's `~/.openclaw` state and summarizes the current risk posture.
-By default, notification forwarding is bridge-based and summary-only: risky startup findings can be sent back through an installed clawbands route, while full remediation detail stays in the local audit surface.
+By default, notification forwarding is bridge-based and summary-only: risky startup findings can be sent back through an installed user-side `clawkeeper-bands` route, while full remediation detail stays in the local audit surface.
 
 ### Auto Hardening
 
@@ -161,6 +161,7 @@ Intent drift compares the user's apparent request against the observed tool chai
 ```text
 .
 ├─ clawkeeper/                 # Clawkeeper launcher package
+├─ plugins/clawkeeper-bands/   # User-side bridge and approval plugin
 ├─ plugins/clawkeeper-watcher/ # Watcher plugin and audit logic
 ├─ src/                        # Underlying runtime codebase
 └─ README.md                   # This project-level overview
@@ -200,6 +201,7 @@ clawkeeper status
 ```bash
 clawkeeper init remote
 clawkeeper init local
+clawkeeper local config set gateway.mode local
 ```
 
 ### 5. Launch through Clawkeeper
@@ -220,6 +222,8 @@ Unless you override it with `--root <path>`, the default layout is:
 ├─ remote/
 └─ local/
 ```
+
+For local mode, the gateway currently expects `gateway.mode=local` to be present in the generated config before `gateway run`.
 
 ## Watcher Commands
 
@@ -247,6 +251,26 @@ clawkeeper local clawkeeper-watcher rollback [backup]
 ```
 
 For the full plugin surface, see [plugins/clawkeeper-watcher/README.md](plugins/clawkeeper-watcher/README.md).
+
+## User-Side Bridge
+
+If you want startup-audit, drift, or skill-guard summaries to land on a separate user-side gateway, that gateway must expose the `clawkeeper-bands` receiver route:
+
+```text
+POST /plugins/clawkeeper-bands/clawkeeper-startup-audit
+```
+
+In practice, that means installing the user-side `clawkeeper-bands` plugin on the receiving gateway and configuring the local watcher bridge:
+
+```bash
+openclaw plugins install --link /path/to/clawkeeper/plugins/clawkeeper-bands
+
+clawkeeper local config set plugins.entries.clawkeeper-watcher.config.notify.userBridge.enabled true
+clawkeeper local config set plugins.entries.clawkeeper-watcher.config.notify.userBridge.url http://127.0.0.1:18889
+clawkeeper local config set plugins.entries.clawkeeper-watcher.config.notify.userBridge.token <gateway-token>
+```
+
+The bridge URL can be set as a bare URL string; no extra JSON quoting is required.
 
 ## Current Focus
 
