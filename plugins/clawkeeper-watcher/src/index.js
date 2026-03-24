@@ -5,6 +5,14 @@ export { listBackups, rollback } from "./core/rollback.js";
 export { scanSkill } from "./core/skill-scanner.js";
 export { startSkillGuard, stopSkillGuard } from "./core/skill-guard.js";
 export {
+  buildAgentProfiles,
+  computeDeviation,
+  detectAnomalies,
+  getCachedProfiles,
+  invalidateProfileCache,
+} from "./core/agent-profiler.js";
+export {
+  RISK_RANK,
   resolveFingerprint,
   loadDecisionHistory,
   extractFingerprints,

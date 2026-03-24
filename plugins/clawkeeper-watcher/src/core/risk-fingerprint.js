@@ -21,7 +21,7 @@ import { getBeijingDateStamp, resolveDecisionMemoryDir } from "./decision-memory
 // Constants
 // ---------------------------------------------------------------------------
 
-const RISK_RANK = { low: 1, medium: 2, high: 3, critical: 4 };
+export const RISK_RANK = { low: 1, medium: 2, high: 3, critical: 4 };
 const RANK_TO_LEVEL = ["low", "low", "medium", "high", "critical"];
 
 const DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes

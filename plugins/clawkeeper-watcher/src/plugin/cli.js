@@ -1,3 +1,4 @@
+import { getCachedProfiles } from "../core/agent-profiler.js";
 import { createAuditContext, runAudit } from "../core/audit-engine.js";
 import { startDriftMonitor, stopDriftMonitor } from "../core/drift-monitor.js";
 import { harden } from "../core/hardening.js";
@@ -42,6 +43,49 @@ function requireLocalMode(mode, commandName) {
     return false;
   }
   return true;
+}
+
+function serializeProfile(profile) {
+  return {
+    ...profile,
+    knownTools: [...profile.knownTools].toSorted((left, right) => left.localeCompare(right)),
+  };
+}
+
+function formatProfileTools(profile) {
+  const entries = Object.entries(profile.toolDistribution ?? {})
+    .toSorted((left, right) => right[1] - left[1])
+    .slice(0, 5)
+    .map(([tool, frequency]) => `${tool} (${Math.round(frequency * 100)}%)`);
+
+  return entries.length > 0 ? entries.join(", ") : "(none)";
+}
+
+function buildProfilesReport(profiles, lookbackDays) {
+  if (profiles.length === 0) {
+    return "No agent profiles found in the lookback window.";
+  }
+
+  const lines = [
+    `Agent Profiles (${profiles.length} agents, ${lookbackDays}-day lookback)`,
+    "------------------------------------------------------------",
+  ];
+
+  for (const profile of profiles) {
+    const avgTokensPerCall = Math.round(profile.avgTotalTokensPerCall || 0);
+    const riskPercent = Math.round((profile.riskRatio || 0) * 100);
+    lines.push(`Agent: ${profile.agentId}`);
+    lines.push(
+      `  Sessions: ${profile.sessionCount} | Tool calls: ${profile.toolCallCount} | Avg tokens/call: ${avgTokensPerCall}`,
+    );
+    lines.push(`  Tools: ${formatProfileTools(profile)}`);
+    lines.push(
+      `  Risk ratio: ${riskPercent}% (${profile.riskDecisionCount}/${profile.judgeDecisionCount} decisions non-continue)`,
+    );
+    lines.push("");
+  }
+
+  return lines.join("\n").trimEnd();
 }
 
 export function registerCliCommands({ program, config }) {
@@ -303,8 +347,7 @@ export function registerCliCommands({ program, config }) {
     .option("--days <number>", "Lookback window in days", "7")
     .option("--min <number>", "Minimum occurrences to display", "2")
     .option("--json", "Output JSON")
-    .action(async (...args) => {
-      const opts = args[0] ?? {};
+    .action(async (opts) => {
       const lookbackDays = Math.max(1, parseInt(opts.days, 10) || 7);
       const minOccurrences = Math.max(1, parseInt(opts.min, 10) || 2);
 
@@ -326,5 +369,46 @@ export function registerCliCommands({ program, config }) {
         console.log(buildFingerprintReport(fingerprintMap, minOccurrences));
         console.log(`\nLookback: ${lookbackDays} day(s) | Min occurrences: ${minOccurrences}`);
       }
+    });
+
+  root
+    .command("profiles")
+    .description("Show per-agent behavioral profiles from historical event logs")
+    .option("--days <number>", "Lookback window in days", "7")
+    .option("--agent <id>", "Filter to a specific agentId")
+    .option("--json", "Output JSON")
+    .action(async (opts) => {
+      const lookbackDays = Math.max(1, parseInt(opts.days, 10) || 7);
+      const agentFilter = typeof opts.agent === "string" ? opts.agent.trim().toLowerCase() : "";
+
+      const profileMap = await getCachedProfiles(lookbackDays);
+      let profiles = [...profileMap.values()];
+      if (agentFilter) {
+        profiles = profiles.filter((profile) => profile.agentId === agentFilter);
+      }
+
+      profiles = profiles.toSorted((left, right) => {
+        if (right.toolCallCount !== left.toolCallCount) {
+          return right.toolCallCount - left.toolCallCount;
+        }
+        return (right.lastSeen || "").localeCompare(left.lastSeen || "");
+      });
+
+      if (opts.json) {
+        console.log(
+          JSON.stringify(
+            {
+              lookbackDays,
+              agentCount: profiles.length,
+              profiles: profiles.map(serializeProfile),
+            },
+            null,
+            2,
+          ),
+        );
+        return;
+      }
+
+      console.log(buildProfilesReport(profiles, lookbackDays));
     });
 }

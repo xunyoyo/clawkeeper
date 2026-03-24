@@ -136,17 +136,17 @@ write|waiting_user_confirmation
 
 ### 字段说明
 
-| 字段           | 类型     | 说明                            |
-| -------------- | -------- | ------------------------------- | --------- |
-| `matched`      | boolean  | 固定为 `true`（仅命中时返回）   |
-| `key`          | string   | 指纹签名，格式 `<tools>         | <reason>` |
-| `occurrences`  | number   | 历史出现次数                    |
-| `maxRiskLevel` | string   | 历史中观测到的最高风险等级      |
-| `sessionCount` | number   | 涉及的独立会话数                |
-| `lastSeen`     | string   | 最近一次出现的时间戳 (ISO 8601) |
-| `toolNames`    | string[] | 涉及的工具列表（排序）          |
-| `stopReason`   | string   | 停止原因                        |
-| `warning`      | string   | 人类可读的预警描述              |
+| 字段           | 类型     | 说明                               |
+| -------------- | -------- | ---------------------------------- |
+| `matched`      | boolean  | 固定为 `true`（仅命中时返回）      |
+| `key`          | string   | 指纹签名，格式 `<tools>\|<reason>` |
+| `occurrences`  | number   | 历史出现次数                       |
+| `maxRiskLevel` | string   | 历史中观测到的最高风险等级         |
+| `sessionCount` | number   | 涉及的独立会话数                   |
+| `lastSeen`     | string   | 最近一次出现的时间戳 (ISO 8601)    |
+| `toolNames`    | string[] | 涉及的工具列表（排序）             |
+| `stopReason`   | string   | 停止原因                           |
+| `warning`      | string   | 人类可读的预警描述                 |
 
 ---
 

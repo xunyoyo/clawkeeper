@@ -1,6 +1,7 @@
+import { resolveAgentAnomaly } from "../core/agent-profiler.js";
 import { judgeForwardedContext } from "../core/context-judge.js";
 import { appendDecisionMemory } from "../core/decision-memory.js";
-import { resolveFingerprint } from "../core/risk-fingerprint.js";
+import { resolveFingerprint, RISK_RANK } from "../core/risk-fingerprint.js";
 
 function writeJson(res, statusCode, payload) {
   res.statusCode = statusCode;
@@ -56,6 +57,25 @@ export function createContextJudgeHttpHandler({
           }
         } catch (error) {
           logger.warn(`[Clawkeeper-Watcher] fingerprint matching failed: ${error.message}`);
+        }
+      }
+
+      // ── Agent behavioral anomaly detection ──
+      if (contextJudgeConfig.agentProfiling?.enabled) {
+        try {
+          const anomaly = await resolveAgentAnomaly({
+            body,
+            decision,
+            config: contextJudgeConfig,
+          });
+          if (anomaly) {
+            decision.agentAnomaly = anomaly;
+            if ((RISK_RANK[anomaly.severity] ?? 0) > (RISK_RANK[decision.riskLevel] ?? 0)) {
+              decision.riskLevel = anomaly.severity;
+            }
+          }
+        } catch (error) {
+          logger.warn(`[Clawkeeper-Watcher] agent profiling failed: ${error.message}`);
         }
       }
 
