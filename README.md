@@ -1,20 +1,19 @@
 # Clawkeeper
 
-Clawkeeper is a watcher-focused fork built on top of [OpenClaw](https://github.com/openclaw/openclaw).
-The project centers on `clawkeeper-watcher`: a dual-mode governance layer that adds context judgment, audit, hardening, drift monitoring, and remote risk intelligence around an OpenClaw runtime.
+Clawkeeper is a watcher-focused runtime wrapper centered on `clawkeeper-watcher`.
+It provides a dual-mode governance layer that adds context judgment, audit, hardening, drift monitoring, and remote risk intelligence around the underlying runtime.
 
 [Repository](https://github.com/xunyoyo/clawkeeper) · [Watcher Plugin](plugins/clawkeeper-watcher/README.md) · [Launcher Source](clawkeeper/) · [Vision](VISION.md) · [License](LICENSE)
 
 ## What Clawkeeper Is
 
-Clawkeeper is not trying to re-document the full upstream OpenClaw platform from the repo homepage.
-Instead, this repository presents a Clawkeeper-specific runtime model:
+This repository presents a Clawkeeper-first runtime model:
 
-- A `clawkeeper` launcher that boots isolated OpenClaw environments
+- A `clawkeeper` launcher that boots isolated environments
 - A `clawkeeper-watcher` plugin that provides dual-mode governance
 - Separate `remote` and `local` operating modes with different trust and remediation boundaries
 
-The launcher delegates to the underlying `openclaw` runtime, but the top-level workflow and repository identity are Clawkeeper-first.
+The launcher is the external entry point, and the watcher capabilities are intended to be reached through `clawkeeper ...`.
 
 ## Dual-Mode Governance Model
 
@@ -54,8 +53,8 @@ Remote mode acts as a read-only decision service. It is designed for:
 Local mode is the governance and remediation side. It is designed for:
 
 - local context judgment with local-side evidence and `localEnhanced: true`
-- startup audit against the user's OpenClaw state under `~/.openclaw`
-- optional startup audit summaries forwarded back to the user's OpenClaw via a clawbands bridge
+- startup audit against the user's runtime state under `~/.openclaw`
+- optional startup audit summaries forwarded back through a clawbands bridge
 - safe auto hardening for explicitly auto-fixable issues only
 - drift monitoring for key config and rules files with deduplicated high-severity alerts
 - runtime governance records for decisions, audits, hardening runs, and drift detections
@@ -110,12 +109,12 @@ Mode-specific behavior:
 
 ## Local Governance Features
 
-The local side governs the user's OpenClaw state, not just Clawkeeper's own launcher workspace.
+The local side governs the user's runtime state, not just Clawkeeper's own launcher workspace.
 
 ### Startup Audit
 
 On gateway start in local mode, the watcher audits the user's `~/.openclaw` state and summarizes the current risk posture.
-By default, notification forwarding is bridge-based and summary-only: risky startup findings can be sent back to the user's OpenClaw through an installed clawbands route, while full remediation detail stays in the local audit surface.
+By default, notification forwarding is bridge-based and summary-only: risky startup findings can be sent back through an installed clawbands route, while full remediation detail stays in the local audit surface.
 
 ### Auto Hardening
 
@@ -163,13 +162,13 @@ Intent drift compares the user's apparent request against the observed tool chai
 .
 ├─ clawkeeper/                 # Clawkeeper launcher package
 ├─ plugins/clawkeeper-watcher/ # Watcher plugin and audit logic
-├─ src/                        # Upstream OpenClaw core runtime
+├─ src/                        # Underlying runtime codebase
 └─ README.md                   # This project-level overview
 ```
 
 ## Install Clawkeeper From Source
 
-Clawkeeper currently lives inside this repository as a launcher plus plugin layered on top of the OpenClaw codebase.
+Clawkeeper currently lives inside this repository as a launcher plus plugin layered on top of the underlying runtime codebase.
 
 ### 1. Install the repo dependencies
 
@@ -213,7 +212,7 @@ clawkeeper remote gateway run
 clawkeeper local gateway run
 ```
 
-The launcher prepares isolated state, config, and workspace directories for each mode, then delegates execution to the repo-local `openclaw.mjs` runtime.
+The launcher prepares isolated state, config, and workspace directories for each mode, then delegates execution to the repo-local runtime entry.
 Unless you override it with `--root <path>`, the default layout is:
 
 ```text
@@ -224,44 +223,30 @@ Unless you override it with `--root <path>`, the default layout is:
 
 ## Watcher Commands
 
-The watcher plugin exposes a shared operational surface in both modes:
+External callers should use the watcher surface through `clawkeeper ...`.
+The shared operations are available through the mode-specific launcher entry:
 
 ```bash
-npx openclaw clawkeeper-watcher status
-npx openclaw clawkeeper-watcher logs
-npx openclaw clawkeeper-watcher logs --scan
-npx openclaw clawkeeper-watcher scan-skill <name-or-path>
-npx openclaw clawkeeper-watcher fingerprints
-npx openclaw clawkeeper-watcher profiles
+clawkeeper remote clawkeeper-watcher status
+clawkeeper local clawkeeper-watcher status
+clawkeeper remote clawkeeper-watcher logs
+clawkeeper local clawkeeper-watcher logs --scan
+clawkeeper local clawkeeper-watcher scan-skill <name-or-path>
+clawkeeper remote clawkeeper-watcher fingerprints
+clawkeeper remote clawkeeper-watcher profiles
 ```
 
 Local-only commands are intended for the trusted execution side:
 
 ```bash
-npx openclaw clawkeeper-watcher audit
-npx openclaw clawkeeper-watcher audit --fix
-npx openclaw clawkeeper-watcher harden
-npx openclaw clawkeeper-watcher monitor
-npx openclaw clawkeeper-watcher rollback [backup]
+clawkeeper local clawkeeper-watcher audit
+clawkeeper local clawkeeper-watcher audit --fix
+clawkeeper local clawkeeper-watcher harden
+clawkeeper local clawkeeper-watcher monitor
+clawkeeper local clawkeeper-watcher rollback [backup]
 ```
 
 For the full plugin surface, see [plugins/clawkeeper-watcher/README.md](plugins/clawkeeper-watcher/README.md).
-
-## How Clawkeeper Relates to OpenClaw
-
-This repository still contains the upstream OpenClaw runtime and many OpenClaw-facing identifiers, commands, and package names.
-That is intentional for now.
-
-Current positioning:
-
-- `Clawkeeper` is the repository identity
-- `clawkeeper` is the launcher used to choose mode and isolate runtime state
-- `clawkeeper-watcher` is the primary project-specific capability
-- `openclaw` remains the underlying runtime, plugin host, and command surface being wrapped
-
-So the correct mental model is:
-
-> Clawkeeper is a watcher-oriented operating layer on top of OpenClaw, not yet a full repo-wide rename of OpenClaw itself.
 
 ## Current Focus
 
@@ -269,9 +254,9 @@ The near-term goal of this fork is to make the watcher model usable and legible:
 
 - keep remote and local responsibilities explicit
 - provide auditable governance around tool use, confirmation boundaries, and skill loading
-- preserve enough upstream compatibility to keep the OpenClaw runtime usable underneath
+- preserve enough compatibility to keep the underlying runtime usable underneath
 
 ## Status
 
-This repository is in an active transition state from an upstream OpenClaw presentation to a Clawkeeper-specific one.
-If a file, package, or command still uses `openclaw`, treat that as upstream runtime inheritance unless a Clawkeeper wrapper has replaced it.
+This repository is in an active transition state toward a Clawkeeper-first presentation.
+External usage should go through `clawkeeper ...`, even when the underlying implementation is still wrapped internally.
