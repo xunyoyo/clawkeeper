@@ -2,7 +2,7 @@
  * Clawkeeper-Bands Tool Interceptor
  * Hook-based interception for OpenClaw's before_tool_call event
  */
-import { Interceptor } from '../core/Interceptor';
+import { Interceptor } from "../core/Interceptor";
 /**
  * Tool name for the custom clawkeeper_bands_respond tool.
  * The LLM calls this to relay the user's YES/NO/ALLOW decision.

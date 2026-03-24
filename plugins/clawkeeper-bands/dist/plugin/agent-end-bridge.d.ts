@@ -11,7 +11,7 @@ export interface AgentEndContext {
     workspaceDir?: string;
 }
 export interface BridgePolicy {
-    maxRiskBeforeStop?: 'low' | 'medium' | 'high' | 'critical';
+    maxRiskBeforeStop?: "low" | "medium" | "high" | "critical";
     requireUserConfirmationFor?: string[];
     autoContinueAllowed?: boolean;
     maxToolStepsWithoutUserTurn?: number;
@@ -21,9 +21,12 @@ export interface BridgeConfig {
     enabled?: boolean;
     url?: string;
     token?: string;
+    /** @deprecated Ignored by the context-judge bridge. */
     model?: string;
     judgePath?: string;
+    /** @deprecated Ignored by the context-judge bridge. */
     systemPrompt?: string;
+    /** @deprecated Ignored by the context-judge bridge. */
     userPrompt?: string;
     timeoutMs?: number;
     maxContextChars?: number;

@@ -57,6 +57,59 @@ function createExecDryRunBatch(params: { markerPath: string }) {
 }
 
 describe("config cli integration", () => {
+  it("persists sequential gateway config writes to an explicit OPENCLAW_CONFIG_PATH", async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-config-cli-int-gateway-"));
+    const configPath = path.join(tempDir, "openclaw.json");
+    const envSnapshot = captureEnv(["OPENCLAW_CONFIG_PATH", "OPENCLAW_TEST_FAST"]);
+    try {
+      fs.writeFileSync(
+        configPath,
+        `${JSON.stringify(
+          {
+            gateway: { port: 18789 },
+            plugins: { enabled: true },
+          },
+          null,
+          2,
+        )}\n`,
+        "utf8",
+      );
+
+      process.env.OPENCLAW_TEST_FAST = "1";
+      process.env.OPENCLAW_CONFIG_PATH = configPath;
+      clearConfigCache();
+      clearRuntimeConfigSnapshot();
+
+      const runtime = createTestRuntime();
+
+      await runConfigSet({
+        path: "gateway.mode",
+        value: "local",
+        cliOptions: {},
+        runtime: runtime.runtime,
+      });
+
+      await runConfigSet({
+        path: "gateway.auth.token",
+        value: "repro-token",
+        cliOptions: {},
+        runtime: runtime.runtime,
+      });
+
+      const written = JSON5.parse(fs.readFileSync(configPath, "utf8"));
+
+      expect(written.gateway?.port).toBe(18789);
+      expect(written.gateway?.mode).toBe("local");
+      expect(written.gateway?.auth?.token).toBe("repro-token");
+      expect(written.plugins?.enabled).toBe(true);
+    } finally {
+      envSnapshot.restore();
+      clearConfigCache();
+      clearRuntimeConfigSnapshot();
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
   it("supports batch-file dry-run and then writes real config changes", async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-config-cli-int-"));
     const configPath = path.join(tempDir, "openclaw.json");

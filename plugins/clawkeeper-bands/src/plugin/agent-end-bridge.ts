@@ -1,7 +1,6 @@
 import { randomUUID } from "crypto";
 import { appendFile, writeFile } from "fs/promises";
 import path from "path";
-import { pathToFileURL } from "url";
 import { CLAWKEEPER_BANDS_DATA_DIR, logger } from "../core/Logger";
 import { clearPendingDecision, setPendingDecision } from "./pending-decision-store";
 
@@ -31,9 +30,12 @@ export interface BridgeConfig {
   enabled?: boolean;
   url?: string;
   token?: string;
+  /** @deprecated Ignored by the context-judge bridge. */
   model?: string;
   judgePath?: string;
+  /** @deprecated Ignored by the context-judge bridge. */
   systemPrompt?: string;
+  /** @deprecated Ignored by the context-judge bridge. */
   userPrompt?: string;
   timeoutMs?: number;
   maxContextChars?: number;
@@ -58,15 +60,6 @@ type JudgeResponse = {
   continueHint: string | null;
 };
 
-type ChatCompletionResponse = {
-  choices?: Array<{
-    message?: {
-      content?: string | Array<{ type?: string; text?: string }>;
-    };
-  }>;
-  error?: unknown;
-};
-
 type DeliveryContext = {
   channel?: string;
   to?: string;
@@ -75,11 +68,13 @@ type DeliveryContext = {
 };
 
 type SessionEntry = {
+  channel?: string;
   deliveryContext?: DeliveryContext;
   lastChannel?: string;
   lastTo?: string;
   lastAccountId?: string;
   lastThreadId?: string | number;
+  origin?: { threadId?: string | number };
 };
 
 type RouteReplyFn = (params: {
@@ -95,29 +90,13 @@ type RouteReplyFn = (params: {
 
 type RuntimeHelpers = {
   resolveStorePath: (store?: string, opts?: { agentId?: string }) => string;
-  loadSessionStore: (
-    storePath: string,
-    opts?: { skipCache?: boolean },
-  ) => Record<string, SessionEntry>;
-  deliveryContextFromSession: (entry?: SessionEntry) => DeliveryContext | undefined;
   routeReply: RouteReplyFn;
 };
 
 const BRIDGE_EVENTS_PATH = path.join(CLAWKEEPER_BANDS_DATA_DIR, "bridge-events.jsonl");
 const BRIDGE_LAST_REQUEST_PATH = path.join(CLAWKEEPER_BANDS_DATA_DIR, "bridge-last-request.json");
 const DEFAULT_MAX_CONTEXT_CHARS = 120_000;
-const DEFAULT_JUDGE_PATH = "/v1/chat/completions";
-const DEFAULT_SYSTEM_PROMPT = [
-  "你是 OpenClaw B。",
-  "你会接收 OpenClaw A 转发来的完整运行上下文，包括对话、工具调用、命令输出和元数据。",
-  "你要使用你自己的思考、skills、plugins 和提示词来判断 A 下一步应不应该继续。",
-  "你不是执行者，不要假装已经替 A 执行了工具。",
-  "你必须只输出一个 JSON 对象，不要输出任何额外解释、代码块或前后缀。",
-  "JSON 必须包含这些字段：decision, summary, userQuestion, continueHint, stopReason。",
-  "decision 只能是 continue、stop、ask_user。",
-  "如果需要用户确认，decision=ask_user，userQuestion 必须是直接发给最终用户的话。",
-].join("\n");
-const DEFAULT_USER_PROMPT = "以下是 OpenClaw A 转发的完整上下文。请基于这份上下文输出严格 JSON。";
+const DEFAULT_JUDGE_PATH = "/plugins/clawkeeper-watcher/context-judge";
 
 let runtimeHelpersPromise: Promise<RuntimeHelpers> | null = null;
 
@@ -137,15 +116,11 @@ function resolveBridgeConfig(
     enabled: true,
     url: url.replace(/\/$/, ""),
     token,
-    model: raw.model ?? process.env.CLAWKEEPER_BANDS_BRIDGE_MODEL ?? "openclaw:main",
     judgePath:
       raw.judgePath ?? process.env.CLAWKEEPER_BANDS_BRIDGE_JUDGE_PATH ?? DEFAULT_JUDGE_PATH,
-    systemPrompt:
-      raw.systemPrompt ??
-      process.env.CLAWKEEPER_BANDS_BRIDGE_SYSTEM_PROMPT ??
-      DEFAULT_SYSTEM_PROMPT,
-    userPrompt:
-      raw.userPrompt ?? process.env.CLAWKEEPER_BANDS_BRIDGE_USER_PROMPT ?? DEFAULT_USER_PROMPT,
+    model: raw.model ?? process.env.CLAWKEEPER_BANDS_BRIDGE_MODEL ?? "",
+    systemPrompt: raw.systemPrompt ?? process.env.CLAWKEEPER_BANDS_BRIDGE_SYSTEM_PROMPT ?? "",
+    userPrompt: raw.userPrompt ?? process.env.CLAWKEEPER_BANDS_BRIDGE_USER_PROMPT ?? "",
     timeoutMs: raw.timeoutMs ?? Number(process.env.CLAWKEEPER_BANDS_BRIDGE_TIMEOUT_MS ?? 15000),
     maxContextChars:
       raw.maxContextChars ??
@@ -279,73 +254,16 @@ async function writeLastBridgeRequest(payload: Record<string, unknown>): Promise
   await writeFile(BRIDGE_LAST_REQUEST_PATH, JSON.stringify(payload, null, 2), "utf8");
 }
 
-function extractAssistantReply(payload: ChatCompletionResponse): string {
-  const content = payload.choices?.[0]?.message?.content;
-  if (typeof content === "string") {
-    return content;
-  }
-  if (Array.isArray(content)) {
-    return content
-      .map((item) => (typeof item?.text === "string" ? item.text : ""))
-      .filter(Boolean)
-      .join("\n");
-  }
-  return "";
-}
-
-function extractFirstJsonObject(text: string): string | null {
-  const start = text.indexOf("{");
-  if (start < 0) {
-    return null;
-  }
-
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-
-  for (let i = start; i < text.length; i += 1) {
-    const ch = text[i];
-    if (inString) {
-      if (escaped) {
-        escaped = false;
-      } else if (ch === "\\") {
-        escaped = true;
-      } else if (ch === '"') {
-        inString = false;
-      }
-      continue;
-    }
-
-    if (ch === '"') {
-      inString = true;
-      continue;
-    }
-    if (ch === "{") {
-      depth += 1;
-      continue;
-    }
-    if (ch === "}") {
-      depth -= 1;
-      if (depth === 0) {
-        return text.slice(start, i + 1);
-      }
-    }
-  }
-
-  return null;
-}
-
-function normalizeJudgeResponse(rawText: string): JudgeResponse {
-  const jsonText = extractFirstJsonObject(rawText);
-  if (!jsonText) {
+function normalizeJudgeResponse(rawPayload: unknown): JudgeResponse {
+  if (!rawPayload || typeof rawPayload !== "object" || Array.isArray(rawPayload)) {
     return {
       version: 1,
       decision: "stop",
-      stopReason: "invalid_json_reply",
+      stopReason: "invalid_response",
       shouldContinue: false,
       needsUserDecision: false,
       userQuestion: null,
-      summary: rawText.trim() || "B 没有返回可解析的 JSON。",
+      summary: "Remote context-judge did not return a valid JSON object.",
       riskLevel: "medium",
       evidence: [],
       nextAction: "stop_run",
@@ -353,66 +271,58 @@ function normalizeJudgeResponse(rawText: string): JudgeResponse {
     };
   }
 
-  try {
-    const parsed = JSON.parse(jsonText) as Partial<JudgeResponse> & {
-      decision?: string;
-      summary?: string;
-      userQuestion?: string | null;
-      continueHint?: string | null;
-      stopReason?: string;
-    };
+  const parsed = rawPayload as Partial<JudgeResponse> & {
+    decision?: string;
+    summary?: string;
+    userQuestion?: string | null;
+    continueHint?: string | null;
+    stopReason?: string;
+  };
 
-    const decision =
-      parsed.decision === "continue" || parsed.decision === "stop" || parsed.decision === "ask_user"
-        ? parsed.decision
-        : "stop";
+  const decision =
+    parsed.decision === "continue" || parsed.decision === "stop" || parsed.decision === "ask_user"
+      ? parsed.decision
+      : "stop";
 
-    return {
-      version: 1,
-      decision,
-      stopReason: typeof parsed.stopReason === "string" ? parsed.stopReason : "unknown",
-      shouldContinue: decision === "continue",
-      needsUserDecision: decision === "ask_user",
-      userQuestion: typeof parsed.userQuestion === "string" ? parsed.userQuestion : null,
-      summary:
-        typeof parsed.summary === "string"
-          ? parsed.summary
-          : rawText.trim() || "B 没有提供 summary。",
-      riskLevel:
-        parsed.riskLevel === "low" ||
-        parsed.riskLevel === "medium" ||
-        parsed.riskLevel === "high" ||
-        parsed.riskLevel === "critical"
-          ? parsed.riskLevel
-          : decision === "continue"
-            ? "low"
-            : "medium",
-      evidence: Array.isArray(parsed.evidence)
-        ? parsed.evidence.filter((item): item is string => typeof item === "string")
-        : [],
-      nextAction:
-        decision === "continue"
+  return {
+    version: Number.isFinite(parsed.version) ? Number(parsed.version) : 1,
+    decision,
+    stopReason: typeof parsed.stopReason === "string" ? parsed.stopReason : "unknown",
+    shouldContinue:
+      typeof parsed.shouldContinue === "boolean" ? parsed.shouldContinue : decision === "continue",
+    needsUserDecision:
+      typeof parsed.needsUserDecision === "boolean"
+        ? parsed.needsUserDecision
+        : decision === "ask_user",
+    userQuestion: typeof parsed.userQuestion === "string" ? parsed.userQuestion : null,
+    summary:
+      typeof parsed.summary === "string"
+        ? parsed.summary
+        : "Remote context-judge did not provide a summary.",
+    riskLevel:
+      parsed.riskLevel === "low" ||
+      parsed.riskLevel === "medium" ||
+      parsed.riskLevel === "high" ||
+      parsed.riskLevel === "critical"
+        ? parsed.riskLevel
+        : decision === "continue"
+          ? "low"
+          : "medium",
+    evidence: Array.isArray(parsed.evidence)
+      ? parsed.evidence.filter((item): item is string => typeof item === "string")
+      : [],
+    nextAction:
+      parsed.nextAction === "continue_run" ||
+      parsed.nextAction === "ask_user" ||
+      parsed.nextAction === "stop_run"
+        ? parsed.nextAction
+        : decision === "continue"
           ? "continue_run"
           : decision === "ask_user"
             ? "ask_user"
             : "stop_run",
-      continueHint: typeof parsed.continueHint === "string" ? parsed.continueHint : null,
-    };
-  } catch {
-    return {
-      version: 1,
-      decision: "stop",
-      stopReason: "invalid_json_reply",
-      shouldContinue: false,
-      needsUserDecision: false,
-      userQuestion: null,
-      summary: rawText.trim() || "B 返回的 JSON 解析失败。",
-      riskLevel: "medium",
-      evidence: [],
-      nextAction: "stop_run",
-      continueHint: null,
-    };
-  }
+    continueHint: typeof parsed.continueHint === "string" ? parsed.continueHint : null,
+  };
 }
 
 function resolveAgentIdFromSessionKey(sessionKey?: string): string | undefined {
@@ -427,7 +337,6 @@ async function importRuntimeHelpers(): Promise<RuntimeHelpers> {
   if (!runtimeHelpersPromise) {
     runtimeHelpersPromise = (async () => {
       const fs = require("fs");
-      const fsp = require("fs/promises");
       const candidateRoots = new Set<string>();
       let cursor = process.cwd();
       candidateRoots.add(cursor);
@@ -449,48 +358,109 @@ async function importRuntimeHelpers(): Promise<RuntimeHelpers> {
         throw new Error("Unable to locate OpenClaw dist/ runtime from clawkeeper-bands bridge");
       }
 
-      const loadModule = async <T>(relativePath: string): Promise<T> => {
+      const loadModule = <T>(relativePath: string): T => {
         const fullPath = path.join(rootDir, relativePath);
-        const loaded = await import(pathToFileURL(fullPath).href);
-        return loaded as T;
+        return require(fullPath) as T;
+      };
+
+      const findNamedExport = <T extends Function>(
+        relativePath: string,
+        targetName: string,
+      ): T | null => {
+        const mod = loadModule<Record<string, unknown>>(relativePath);
+        for (const value of Object.values(mod)) {
+          if (typeof value === "function" && value.name === targetName) {
+            return value as T;
+          }
+        }
+        return null;
       };
 
       const distDir = path.join(rootDir, "dist");
-      const distEntries = (await fsp.readdir(distDir))
-        .filter((entry: string) => entry.endsWith(".js") && /^(sessions|paths|reply)-/.test(entry))
-        .toSorted();
+      const distEntries = fs.readdirSync(distDir).filter((entry: string) => entry.endsWith(".js"));
+      const pathsEntry = distEntries.find((entry: string) => /^paths-.*\.js$/.test(entry));
+      const replyRuntimeEntry = distEntries.find((entry: string) =>
+        /^route-reply\.runtime-.*\.js$/.test(entry),
+      );
 
-      const findNamedExport = async <T extends Function>(targetName: string): Promise<T> => {
-        for (const entry of distEntries) {
-          const mod = await loadModule<Record<string, unknown>>(`dist/${entry}`);
-          for (const value of Object.values(mod)) {
-            if (typeof value === "function" && value.name === targetName) {
-              return value as T;
-            }
-          }
-        }
-        throw new Error(`Unable to resolve ${targetName} from OpenClaw dist bundles`);
-      };
+      if (!pathsEntry) {
+        throw new Error("Unable to locate paths runtime bundle from OpenClaw dist");
+      }
+      if (!replyRuntimeEntry) {
+        throw new Error("Unable to locate route-reply runtime bundle from OpenClaw dist");
+      }
 
-      const loadSessionStore =
-        await findNamedExport<RuntimeHelpers["loadSessionStore"]>("loadSessionStore");
-      const resolveStorePath =
-        await findNamedExport<RuntimeHelpers["resolveStorePath"]>("resolveStorePath");
-      const deliveryContextFromSession = await findNamedExport<
-        RuntimeHelpers["deliveryContextFromSession"]
-      >("deliveryContextFromSession");
-      const routeReply = await findNamedExport<RuntimeHelpers["routeReply"]>("routeReply");
+      const resolveStorePath = findNamedExport<RuntimeHelpers["resolveStorePath"]>(
+        `dist/${pathsEntry}`,
+        "resolveStorePath",
+      );
+      const routeReply = findNamedExport<RuntimeHelpers["routeReply"]>(
+        `dist/${replyRuntimeEntry}`,
+        "routeReply",
+      );
+
+      if (typeof resolveStorePath !== "function") {
+        throw new Error(`Unable to resolve resolveStorePath from OpenClaw ${pathsEntry}`);
+      }
+      if (typeof routeReply !== "function") {
+        throw new Error(`Unable to resolve routeReply from OpenClaw ${replyRuntimeEntry}`);
+      }
 
       return {
         resolveStorePath,
-        loadSessionStore,
-        deliveryContextFromSession,
         routeReply,
       };
     })();
   }
 
   return runtimeHelpersPromise;
+}
+
+async function loadSessionStoreFromDisk(storePath: string): Promise<Record<string, SessionEntry>> {
+  try {
+    const { readFile } = await import("fs/promises");
+    const raw = await readFile(storePath, "utf8");
+    const parsed = JSON.parse(raw) as Record<string, SessionEntry>;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function normalizeDeliveryField(value: unknown): string | undefined {
+  return typeof value === "string" ? value.trim() || undefined : undefined;
+}
+
+function normalizeThreadId(value: unknown): string | number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.trunc(value);
+  }
+  return typeof value === "string" ? value.trim() || undefined : undefined;
+}
+
+function deliveryContextFromSessionEntry(entry?: SessionEntry): DeliveryContext | undefined {
+  if (!entry) {
+    return undefined;
+  }
+
+  const direct = entry.deliveryContext;
+  const channel = normalizeDeliveryField(direct?.channel ?? entry.lastChannel ?? entry.channel);
+  const to = normalizeDeliveryField(direct?.to ?? entry.lastTo);
+  const accountId = normalizeDeliveryField(direct?.accountId ?? entry.lastAccountId);
+  const threadId = normalizeThreadId(
+    direct?.threadId ?? entry.lastThreadId ?? entry.origin?.threadId,
+  );
+
+  if (!channel && !to && !accountId && threadId == null) {
+    return undefined;
+  }
+
+  return {
+    channel,
+    to,
+    accountId,
+    ...(threadId != null ? { threadId } : {}),
+  };
 }
 
 async function loadCurrentDeliveryContext(params: {
@@ -510,9 +480,9 @@ async function loadCurrentDeliveryContext(params: {
         agentId,
       },
     );
-    const store = helpers.loadSessionStore(storePath, { skipCache: true });
+    const store = await loadSessionStoreFromDisk(storePath);
     const entry = store[params.sessionKey.toLowerCase()] ?? store[params.sessionKey];
-    const delivery = helpers.deliveryContextFromSession(entry);
+    const delivery = deliveryContextFromSessionEntry(entry);
     if (!delivery?.channel || !delivery.to) {
       return { reason: "no deliveryContext on current session" };
     }
@@ -601,25 +571,9 @@ export function createAgentEndBridgeHook(
     };
 
     const requestPayload = {
-      model: bridge.model,
-      messages: [
-        { role: "system", content: bridge.systemPrompt },
-        {
-          role: "user",
-          content: [
-            bridge.userPrompt,
-            "",
-            stringifyUnknown(
-              {
-                requestId,
-                forwardedContext,
-                policy: bridge.policy,
-              },
-              bridge.maxContextChars,
-            ),
-          ].join("\n"),
-        },
-      ],
+      requestId,
+      forwardedContext,
+      policy: bridge.policy,
     };
 
     const startedAt = Date.now();
@@ -642,14 +596,19 @@ export function createAgentEndBridgeHook(
         signal: AbortSignal.timeout(bridge.timeoutMs),
       });
 
-      const payload = (await response.json()) as ChatCompletionResponse;
-      const rawReply = extractAssistantReply(payload);
-      const judge = normalizeJudgeResponse(rawReply);
+      const payload = await response.json();
+      const judge = normalizeJudgeResponse(payload);
+
+      if (!response.ok) {
+        throw new Error(
+          `remote context-judge returned ${response.status}: ${judge.summary || "request failed"}`,
+        );
+      }
 
       if (judge.decision === "ask_user") {
         await setPendingDecision(ctx.sessionKey, {
           pendingDecision: true,
-          origin: "skillkeeper-context-judge",
+          origin: "clawkeeper-context-judge",
           requestId,
           question: judge.userQuestion ?? judge.summary,
           continueHint: judge.continueHint ?? undefined,
@@ -684,11 +643,10 @@ export function createAgentEndBridgeHook(
         sessionId: ctx.sessionId,
         sessionKey: ctx.sessionKey,
         durationMs: Date.now() - startedAt,
-        rawReply,
+        payload,
         judge,
         deliveredToChannel: deliveryResult?.ok ?? false,
         deliveryReason: deliveryResult?.reason,
-        error: payload.error,
       };
 
       await appendBridgeEvent(bridgeEvent);

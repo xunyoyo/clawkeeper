@@ -8,10 +8,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.StatsTracker = void 0;
-const fs_extra_1 = __importDefault(require("fs-extra"));
 const path_1 = __importDefault(require("path"));
+const fs_extra_1 = __importDefault(require("fs-extra"));
 const Logger_1 = require("../core/Logger");
-const STATS_FILE = path_1.default.join(Logger_1.CLAWKEEPER_BANDS_DATA_DIR, 'stats.json');
+const STATS_FILE = path_1.default.join(Logger_1.CLAWKEEPER_BANDS_DATA_DIR, "stats.json");
 /** Serializes concurrent writes to prevent lost increments. */
 let writeChain = Promise.resolve();
 class StatsTracker {
@@ -40,7 +40,7 @@ class StatsTracker {
             }
         }
         catch (error) {
-            Logger_1.logger.error('Failed to load stats', { error });
+            Logger_1.logger.error("Failed to load stats", { error });
             throw error;
         }
     }
@@ -53,7 +53,7 @@ class StatsTracker {
             await fs_extra_1.default.writeJson(STATS_FILE, stats, { spaces: 2 });
         }
         catch (error) {
-            Logger_1.logger.error('Failed to save stats', { error });
+            Logger_1.logger.error("Failed to save stats", { error });
             throw error;
         }
     }
@@ -66,16 +66,16 @@ class StatsTracker {
             const stats = await this.load();
             stats.totalCalls++;
             switch (decision) {
-                case 'ALLOWED':
+                case "ALLOWED":
                     stats.allowed++;
                     break;
-                case 'APPROVED':
+                case "APPROVED":
                     stats.approved++;
                     break;
-                case 'REJECTED':
+                case "REJECTED":
                     stats.rejected++;
                     break;
-                case 'BLOCKED':
+                case "BLOCKED":
                     stats.blocked++;
                     break;
             }
@@ -101,7 +101,7 @@ class StatsTracker {
             lastReset: new Date().toISOString(),
         };
         await this.save(resetStats);
-        Logger_1.logger.info('Stats reset');
+        Logger_1.logger.info("Stats reset");
     }
     /**
      * Get the stats file path

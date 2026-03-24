@@ -2,7 +2,7 @@
  * Clawkeeper-Bands Default Security Policy
  * Philosophy: "Secure by Default"
  */
-import { SecurityPolicy, WebSocketConfig, CommandConfig } from './types';
+import { SecurityPolicy, WebSocketConfig, CommandConfig } from "./types";
 export declare const DEFAULT_POLICY: SecurityPolicy;
 /**
  * Default WebSocket configuration for external AI agent approval

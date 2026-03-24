@@ -23,7 +23,7 @@ export declare class StatsTracker {
     /**
      * Increment a stat counter and update average decision time
      */
-    static increment(decision: 'ALLOWED' | 'APPROVED' | 'REJECTED' | 'BLOCKED', decisionTime: number): Promise<void>;
+    static increment(decision: "ALLOWED" | "APPROVED" | "REJECTED" | "BLOCKED", decisionTime: number): Promise<void>;
     /**
      * Reset all stats to zero
      */

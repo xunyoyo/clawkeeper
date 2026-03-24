@@ -6,6 +6,7 @@ import { DEFAULT_RULES, RULE_BLOCK_END, RULE_BLOCK_START } from "./metadata.js";
 
 export async function resolveStateDir() {
   const candidates = [
+    process.env.OPENCLAW_STATE_DIR,
     process.env.OPENCLAW_HOME,
     path.join(os.homedir(), ".openclaw"),
     path.join(os.homedir(), ".moltbot"),
@@ -22,7 +23,7 @@ export async function resolveStateDir() {
     }
   }
 
-  return candidates[1];
+  return candidates[0] ?? path.join(os.homedir(), ".openclaw");
 }
 
 export async function resolveUserOpenClawStateDir() {

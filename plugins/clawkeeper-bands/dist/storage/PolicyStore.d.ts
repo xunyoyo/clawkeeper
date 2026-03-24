@@ -2,7 +2,7 @@
  * Clawkeeper-Bands PolicyStore
  * Manages persistence of security policies in ~/.openclaw/clawkeeper-bands/policy.json
  */
-import { SecurityPolicy } from '../types';
+import { SecurityPolicy } from "../types";
 export interface PersistedPolicy extends SecurityPolicy {
     version: string;
     createdAt: string;

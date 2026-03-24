@@ -9,7 +9,7 @@
  *  4. WebSocket (external AI agent) → ws request + wait for YES/NO/ALLOW
  *  5. Command (external script)    → execute command + parse YES/NO
  */
-import { ExecutionContext, WebSocketConfig, CommandConfig } from '../types';
+import { ExecutionContext, WebSocketConfig, CommandConfig } from "../types";
 export declare class Arbitrator {
     private wsConfig;
     private cmdConfig;

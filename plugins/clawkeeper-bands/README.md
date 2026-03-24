@@ -7,7 +7,7 @@ It provides:
 
 - the user-side startup-audit receiver route
 - approval middleware for risky tool calls
-- the agent-end bridge surface
+- the user-side bridge to a remote `clawkeeper-watcher` `context-judge` endpoint
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/%3C%2F%3E-TypeScript-%23007ACC.svg)](http://www.typescriptlang.org/)
@@ -26,6 +26,21 @@ Clawkeeper-Bands solves this by hooking into OpenClaw's `before_tool_call` plugi
 - 💬 **Channel Support** - Works in terminal, WhatsApp, Telegram via `clawkeeper_bands_respond` tool
 - 📊 **Full Audit Trail** - Every decision logged (JSON Lines format)
 - ⚡ **Zero Latency** - Runs in-process, no API calls
+
+## Remote Judge Bridge
+
+When bridge mode is enabled, Clawkeeper-Bands forwards the finished agent context to a remote Clawkeeper watcher over:
+
+```text
+POST /plugins/clawkeeper-watcher/context-judge
+```
+
+The remote watcher returns a structured `continue`, `ask_user`, or `stop` decision. Clawkeeper-Bands then:
+
+- stores pending confirmations when the remote side says `ask_user`
+- delivers the confirmation question back to the current user channel
+- mirrors `stop` summaries back to the user
+- keeps the approval state on the user-side gateway
 
 ## Quick Start
 
@@ -200,6 +215,7 @@ src/
 │   └── Logger.ts         # Winston-based logging
 ├── plugin/
 │   ├── index.ts              # Plugin entry point (hook + tool registration)
+│   ├── agent-end-bridge.ts   # Forward agent_end context to remote context-judge
 │   ├── tool-interceptor.ts   # before_tool_call handler + clawkeeper_bands_respond intercept
 │   └── config-manager.ts     # OpenClaw config management (register/unregister)
 ├── storage/        # Persistence (PolicyStore, DecisionLog, StatsTracker)

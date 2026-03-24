@@ -64,7 +64,7 @@ class ApprovalQueue {
         this.maybeCleanup();
         const k = this.key(sessionKey, moduleName, methodName);
         const existing = this.entries.get(k);
-        if (existing && existing.status === 'pending' && Date.now() < existing.expiresAt) {
+        if (existing && existing.status === "pending" && Date.now() < existing.expiresAt) {
             const age = Date.now() - existing.createdAt;
             if (age <= CONSUME_MAX_AGE_MS) {
                 Logger_1.logger.debug(`ApprovalQueue: pending already exists within retry window, skipping`, {
@@ -79,7 +79,7 @@ class ApprovalQueue {
             sessionKey,
             moduleName,
             methodName,
-            status: 'pending',
+            status: "pending",
             createdAt: Date.now(),
             expiresAt: Date.now() + this.ttl,
         });
@@ -96,7 +96,7 @@ class ApprovalQueue {
     consume(sessionKey, moduleName, methodName) {
         const k = this.key(sessionKey, moduleName, methodName);
         const entry = this.entries.get(k);
-        if (entry && entry.status === 'approved' && Date.now() < entry.expiresAt) {
+        if (entry && entry.status === "approved" && Date.now() < entry.expiresAt) {
             this.entries.delete(k);
             Logger_1.logger.info(`ApprovalQueue: approval consumed`, {
                 sessionKey,
@@ -108,7 +108,7 @@ class ApprovalQueue {
         Logger_1.logger.debug(`ApprovalQueue.consume: not found/not approved`, {
             sessionKey,
             action: `${moduleName}.${methodName}`,
-            entryStatus: entry?.status ?? 'missing',
+            entryStatus: entry?.status ?? "missing",
             expired,
             queueSize: this.entries.size,
         });
@@ -127,7 +127,7 @@ class ApprovalQueue {
     consumePending(sessionKey, moduleName, methodName) {
         const k = this.key(sessionKey, moduleName, methodName);
         const entry = this.entries.get(k);
-        if (entry && entry.status === 'pending' && Date.now() < entry.expiresAt) {
+        if (entry && entry.status === "pending" && Date.now() < entry.expiresAt) {
             const age = Date.now() - entry.createdAt;
             if (age > CONSUME_MAX_AGE_MS) {
                 Logger_1.logger.info(`ApprovalQueue: pending too old for retry-as-approval, will re-prompt`, {
@@ -158,8 +158,8 @@ class ApprovalQueue {
         let count = 0;
         for (const k of this.keysForSession(sessionKey)) {
             const entry = this.entries.get(k);
-            if (entry.status === 'pending' && Date.now() < entry.expiresAt) {
-                entry.status = 'approved';
+            if (entry.status === "pending" && Date.now() < entry.expiresAt) {
+                entry.status = "approved";
                 // Reset TTL from the moment of approval
                 entry.expiresAt = Date.now() + this.ttl;
                 count++;
@@ -181,7 +181,7 @@ class ApprovalQueue {
         let count = 0;
         for (const k of this.keysForSession(sessionKey)) {
             const entry = this.entries.get(k);
-            if (entry.status === 'pending') {
+            if (entry.status === "pending") {
                 this.entries.delete(k);
                 count++;
                 Logger_1.logger.info(`ApprovalQueue: denied`, {
@@ -199,7 +199,7 @@ class ApprovalQueue {
         const keys = this.keysForSession(sessionKey);
         const result = keys.some((k) => {
             const e = this.entries.get(k);
-            return e.status === 'pending' && Date.now() < e.expiresAt;
+            return e.status === "pending" && Date.now() < e.expiresAt;
         });
         Logger_1.logger.debug(`ApprovalQueue.hasPending`, {
             sessionKey,
@@ -248,7 +248,7 @@ class ApprovalQueue {
     getPendingActions(sessionKey) {
         return this.keysForSession(sessionKey)
             .map((k) => this.entries.get(k))
-            .filter((e) => e.status === 'pending' && Date.now() < e.expiresAt)
+            .filter((e) => e.status === "pending" && Date.now() < e.expiresAt)
             .map((e) => ({ moduleName: e.moduleName, methodName: e.methodName }));
     }
     // ---------------------------------------------------------------------------

@@ -15,13 +15,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Arbitrator = void 0;
-const inquirer_1 = __importDefault(require("inquirer"));
-const chalk_1 = __importDefault(require("chalk"));
-const ws_1 = __importDefault(require("ws"));
 const child_process_1 = require("child_process");
-const Logger_1 = require("./Logger");
-const ApprovalQueue_1 = require("./ApprovalQueue");
+const chalk_1 = __importDefault(require("chalk"));
+const inquirer_1 = __importDefault(require("inquirer"));
+const ws_1 = __importDefault(require("ws"));
 const config_1 = require("../config");
+const ApprovalQueue_1 = require("./ApprovalQueue");
+const Logger_1 = require("./Logger");
 class Arbitrator {
     wsConfig;
     cmdConfig;
@@ -73,28 +73,28 @@ class Arbitrator {
         this.displayContext(context);
         const answer = await inquirer_1.default.prompt([
             {
-                type: 'list',
-                name: 'decision',
-                message: chalk_1.default.bold.yellow('⚠️  What should Clawkeeper-Bands do?'),
+                type: "list",
+                name: "decision",
+                message: chalk_1.default.bold.yellow("⚠️  What should Clawkeeper-Bands do?"),
                 choices: [
                     {
-                        name: chalk_1.default.green('✓ Approve - Allow this action'),
+                        name: chalk_1.default.green("✓ Approve - Allow this action"),
                         value: true,
                     },
                     {
-                        name: chalk_1.default.red('✗ Reject - Block this action'),
+                        name: chalk_1.default.red("✗ Reject - Block this action"),
                         value: false,
                     },
                 ],
                 default: 1, // Default to Reject for safety
             },
         ]);
-        console.log(''); // Add spacing after decision
+        console.log(""); // Add spacing after decision
         if (answer.decision) {
-            console.log(chalk_1.default.green('✓ Action APPROVED by user\n'));
+            console.log(chalk_1.default.green("✓ Action APPROVED by user\n"));
         }
         else {
-            console.log(chalk_1.default.red('✗ Action REJECTED by user\n'));
+            console.log(chalk_1.default.red("✗ Action REJECTED by user\n"));
         }
         return answer.decision;
     }
@@ -158,14 +158,14 @@ class Arbitrator {
                 ws = new ws_1.default(wsUrl);
                 // Timeout handler
                 timer = setTimeout(() => {
-                    Logger_1.logger.warn('WebSocket approval request timed out');
+                    Logger_1.logger.warn("WebSocket approval request timed out");
                     cleanup();
                     resolve(false);
                 }, timeout);
-                ws.on('open', () => {
+                ws.on("open", () => {
                     // Send approval request to external AI agent
                     const request = {
-                        type: 'approval_request',
+                        type: "approval_request",
                         moduleName,
                         methodName,
                         args,
@@ -173,48 +173,48 @@ class Arbitrator {
                         timestamp: new Date().toISOString(),
                     };
                     ws.send(JSON.stringify(request));
-                    Logger_1.logger.info('WebSocket approval request sent', { moduleName, methodName });
+                    Logger_1.logger.info("WebSocket approval request sent", { moduleName, methodName });
                 });
-                ws.on('message', (data) => {
+                ws.on("message", (data) => {
                     try {
-                        const raw = typeof data === 'string'
+                        const raw = typeof data === "string"
                             ? data
                             : Buffer.isBuffer(data)
-                                ? data.toString('utf8')
+                                ? data.toString("utf8")
                                 : Array.isArray(data)
-                                    ? Buffer.concat(data).toString('utf8')
-                                    : '';
+                                    ? Buffer.concat(data).toString("utf8")
+                                    : "";
                         const response = JSON.parse(raw);
                         const decision = response.decision?.toUpperCase();
-                        Logger_1.logger.info('WebSocket response received', { decision, response });
+                        Logger_1.logger.info("WebSocket response received", { decision, response });
                         switch (decision) {
-                            case 'YES':
-                            case 'ALLOW':
+                            case "YES":
+                            case "ALLOW":
                                 cleanup();
                                 Logger_1.logger.info(`ASK policy → WebSocket approved: ${moduleName}.${methodName}()`);
                                 resolve(true);
                                 break;
-                            case 'NO':
+                            case "NO":
                                 cleanup();
                                 Logger_1.logger.info(`ASK policy → WebSocket rejected: ${moduleName}.${methodName}()`);
                                 resolve(false);
                                 break;
                             default:
-                                Logger_1.logger.warn('WebSocket received unknown decision', { decision });
+                                Logger_1.logger.warn("WebSocket received unknown decision", { decision });
                         }
                     }
                     catch (err) {
-                        Logger_1.logger.error('Failed to parse WebSocket response', { err });
+                        Logger_1.logger.error("Failed to parse WebSocket response", { err });
                     }
                 });
-                ws.on('error', (err) => {
-                    Logger_1.logger.error('WebSocket connection error', { err });
+                ws.on("error", (err) => {
+                    Logger_1.logger.error("WebSocket connection error", { err });
                     cleanup();
                     resolve(false);
                 });
             }
             catch (err) {
-                Logger_1.logger.error('Failed to create WebSocket connection', { err });
+                Logger_1.logger.error("Failed to create WebSocket connection", { err });
                 cleanup();
                 resolve(false);
             }
@@ -236,33 +236,33 @@ class Arbitrator {
             const child = (0, child_process_1.exec)(`${command} ${cmdArgs}`, { timeout }, (error, stdout) => {
                 if (error) {
                     if (error.killed) {
-                        Logger_1.logger.warn('Command execution timed out');
+                        Logger_1.logger.warn("Command execution timed out");
                     }
                     else {
-                        Logger_1.logger.error('Command execution failed', { error });
+                        Logger_1.logger.error("Command execution failed", { error });
                     }
                     resolve(false);
                     return;
                 }
                 const output = stdout.trim().toUpperCase();
-                Logger_1.logger.info('Command output received', { output });
+                Logger_1.logger.info("Command output received", { output });
                 switch (output) {
-                    case 'YES':
-                    case 'ALLOW':
+                    case "YES":
+                    case "ALLOW":
                         Logger_1.logger.info(`ASK policy → Command approved: ${moduleName}.${methodName}()`);
                         resolve(true);
                         break;
-                    case 'NO':
+                    case "NO":
                         Logger_1.logger.info(`ASK policy → Command rejected: ${moduleName}.${methodName}()`);
                         resolve(false);
                         break;
                     default:
-                        Logger_1.logger.warn('Command returned unknown output, treating as NO', { output });
+                        Logger_1.logger.warn("Command returned unknown output, treating as NO", { output });
                         resolve(false);
                 }
             });
-            child.on('error', (err) => {
-                Logger_1.logger.error('Failed to spawn command', { err });
+            child.on("error", (err) => {
+                Logger_1.logger.error("Failed to spawn command", { err });
                 resolve(false);
             });
         });
@@ -271,36 +271,36 @@ class Arbitrator {
     // Display helpers (TTY mode)
     // ---------------------------------------------------------------------------
     displayBanner() {
-        console.log('');
-        console.log(chalk_1.default.bgRed.white.bold('═'.repeat(80)));
-        console.log(chalk_1.default.bgRed.white.bold('   🦞 CLAWBANDS SECURITY ALERT - HUMAN AUTHORIZATION REQUIRED'));
-        console.log(chalk_1.default.bgRed.white.bold('═'.repeat(80)));
-        console.log('');
+        console.log("");
+        console.log(chalk_1.default.bgRed.white.bold("═".repeat(80)));
+        console.log(chalk_1.default.bgRed.white.bold("   🦞 CLAWBANDS SECURITY ALERT - HUMAN AUTHORIZATION REQUIRED"));
+        console.log(chalk_1.default.bgRed.white.bold("═".repeat(80)));
+        console.log("");
     }
     displayContext(context) {
-        console.log(chalk_1.default.bold.cyan('📦 Module:'), chalk_1.default.white(context.moduleName));
-        console.log(chalk_1.default.bold.cyan('🔧 Method:'), chalk_1.default.white(context.methodName));
+        console.log(chalk_1.default.bold.cyan("📦 Module:"), chalk_1.default.white(context.moduleName));
+        console.log(chalk_1.default.bold.cyan("🔧 Method:"), chalk_1.default.white(context.methodName));
         if (context.rule.description) {
-            console.log(chalk_1.default.bold.cyan('⚠️  Risk:'), chalk_1.default.yellow(context.rule.description));
+            console.log(chalk_1.default.bold.cyan("⚠️  Risk:"), chalk_1.default.yellow(context.rule.description));
         }
-        console.log(chalk_1.default.bold.cyan('📋 Arguments:'));
+        console.log(chalk_1.default.bold.cyan("📋 Arguments:"));
         try {
             const argsJson = JSON.stringify(context.args, null, 2);
             console.log(chalk_1.default.gray(this.indentJson(argsJson)));
         }
         catch {
-            console.log(chalk_1.default.gray('  [Arguments contain non-serializable data]'));
-            console.log(chalk_1.default.gray('  ' + String(context.args)));
+            console.log(chalk_1.default.gray("  [Arguments contain non-serializable data]"));
+            console.log(chalk_1.default.gray("  " + String(context.args)));
         }
-        console.log('');
-        console.log(chalk_1.default.dim('─'.repeat(80)));
-        console.log('');
+        console.log("");
+        console.log(chalk_1.default.dim("─".repeat(80)));
+        console.log("");
     }
     indentJson(json) {
         return json
-            .split('\n')
-            .map((line) => '  ' + line)
-            .join('\n');
+            .split("\n")
+            .map((line) => "  " + line)
+            .join("\n");
     }
 }
 exports.Arbitrator = Arbitrator;

@@ -7,7 +7,7 @@ export interface DecisionRecord {
     module: string;
     method: string;
     args: unknown[];
-    decision: 'ALLOWED' | 'APPROVED' | 'REJECTED' | 'BLOCKED';
+    decision: "ALLOWED" | "APPROVED" | "REJECTED" | "BLOCKED";
     userId?: string;
     decisionTime: number;
     reason?: string;

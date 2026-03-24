@@ -4,7 +4,7 @@ import { CLAWKEEPER_BANDS_DATA_DIR } from "../core/Logger";
 
 export interface PendingDecisionRecord {
   pendingDecision: true;
-  origin: "skillkeeper-context-judge";
+  origin: "clawkeeper-context-judge";
   requestId: string;
   question: string;
   continueHint?: string;

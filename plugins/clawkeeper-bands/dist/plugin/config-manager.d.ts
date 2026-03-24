@@ -27,7 +27,7 @@ export declare function saveOpenClawConfig(config: OpenClawConfig): Promise<void
 /**
  * Register Clawkeeper-Bands plugin in OpenClaw's config (plugins.entries["clawkeeper-bands"])
  */
-export declare function registerPlugin(defaultAction?: 'ALLOW' | 'DENY' | 'ASK'): Promise<void>;
+export declare function registerPlugin(defaultAction?: "ALLOW" | "DENY" | "ASK"): Promise<void>;
 /**
  * Unregister Clawkeeper-Bands plugin from OpenClaw's config
  */

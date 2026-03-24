@@ -1,6 +1,6 @@
 export interface PendingDecisionRecord {
     pendingDecision: true;
-    origin: 'skillkeeper-context-judge';
+    origin: "clawkeeper-context-judge";
     requestId: string;
     question: string;
     continueHint?: string;

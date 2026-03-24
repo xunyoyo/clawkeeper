@@ -8,10 +8,10 @@
  * Hooks:
  *  before_tool_call → api.on() (tool interception)
  */
-import { type BridgeConfig } from './agent-end-bridge';
+import { type BridgeConfig } from "./agent-end-bridge";
 export interface ClawkeeperBandsConfig {
     enabled?: boolean;
-    defaultAction?: 'ALLOW' | 'DENY' | 'ASK';
+    defaultAction?: "ALLOW" | "DENY" | "ASK";
     bridge?: BridgeConfig;
 }
 /**
@@ -36,7 +36,7 @@ interface OpenClawPluginApi {
     on?(hookName: string, handler: (...args: unknown[]) => void): void;
     registerHttpRoute?(params: {
         path: string;
-        auth: 'gateway' | 'plugin';
+        auth: "gateway" | "plugin";
         handler: (req: unknown, res: unknown) => Promise<boolean | void> | boolean | void;
     }): void;
     registerTool?(spec: {

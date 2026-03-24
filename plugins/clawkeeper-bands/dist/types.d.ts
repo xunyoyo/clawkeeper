@@ -8,7 +8,7 @@
  * - DENY: Block execution and throw error
  * - ASK: Pause and request human decision
  */
-export type Decision = 'ALLOW' | 'DENY' | 'ASK';
+export type Decision = "ALLOW" | "DENY" | "ASK";
 /**
  * Rule definition for a specific method
  */

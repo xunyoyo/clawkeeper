@@ -9,8 +9,9 @@ interface PendingPromptContext {
   sessionKey?: string;
 }
 
-const CONTINUE_RE = /\b(继续|是|好的|确认|继续做|ok|okay|yes|continue|go ahead)\b/i;
-const STOP_RE = /\b(不要|停止|取消|算了|终止|stop|cancel|abort|don't|do not)\b/i;
+// Avoid word-boundary matching so Chinese confirmations still match reliably.
+const CONTINUE_RE = /(继续|是|好的|确认|继续做|ok|okay|yes|continue|go ahead)/i;
+const STOP_RE = /(不要|停止|取消|算了|终止|stop|cancel|abort|don't|do not)/i;
 
 function extractText(value: unknown): string {
   if (typeof value === "string") {

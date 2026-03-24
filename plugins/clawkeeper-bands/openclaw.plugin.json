@@ -21,31 +21,31 @@
         "properties": {
           "enabled": {
             "type": "boolean",
-            "description": "Whether to forward agent_end events to another OpenClaw gateway"
+            "description": "Whether to forward agent_end context to a remote clawkeeper-watcher context-judge route"
           },
           "url": {
             "type": "string",
-            "description": "Base URL for OpenClaw B, e.g. http://127.0.0.1:19002"
+            "description": "Base URL for the remote Clawkeeper gateway hosting clawkeeper-watcher, e.g. http://127.0.0.1:19002"
           },
           "token": {
             "type": "string",
-            "description": "Gateway token for OpenClaw B"
+            "description": "Gateway token for the remote Clawkeeper gateway"
           },
           "model": {
             "type": "string",
-            "description": "Model name to send to the OpenClaw B chat endpoint"
+            "description": "Deprecated. Ignored by the context-judge bridge."
           },
           "judgePath": {
             "type": "string",
-            "description": "Relative HTTP path for B-side chat endpoint, defaults to /v1/chat/completions"
+            "description": "Relative HTTP path for the remote context-judge endpoint, defaults to /plugins/clawkeeper-watcher/context-judge"
           },
           "systemPrompt": {
             "type": "string",
-            "description": "Optional system prompt for OpenClaw B"
+            "description": "Deprecated. Ignored by the context-judge bridge."
           },
           "userPrompt": {
             "type": "string",
-            "description": "Optional user prompt template for OpenClaw B"
+            "description": "Deprecated. Ignored by the context-judge bridge."
           },
           "timeoutMs": {
             "type": "integer",
@@ -55,7 +55,7 @@
           "maxContextChars": {
             "type": "integer",
             "minimum": 1000,
-            "description": "Maximum serialized context characters forwarded to OpenClaw B"
+            "description": "Maximum serialized context characters forwarded to the remote context-judge"
           },
           "policy": {
             "type": "object",

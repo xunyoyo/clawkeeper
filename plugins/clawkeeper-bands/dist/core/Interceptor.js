@@ -8,12 +8,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Interceptor = void 0;
+const chalk_1 = __importDefault(require("chalk"));
 const config_1 = require("../config");
-const Arbitrator_1 = require("./Arbitrator");
 const DecisionLog_1 = require("../storage/DecisionLog");
 const StatsTracker_1 = require("../storage/StatsTracker");
+const Arbitrator_1 = require("./Arbitrator");
 const Logger_1 = require("./Logger");
-const chalk_1 = __importDefault(require("chalk"));
 class Interceptor {
     policy;
     arbitrator;
@@ -46,7 +46,7 @@ class Interceptor {
             // In channel mode (no TTY + sessionKey), provide a message the agent can
             // relay to the user on WhatsApp/Telegram so they can reply YES to approve.
             const isChannelMode = !process.stdin.isTTY && sessionKey;
-            const detail = rule.description || 'No description provided.';
+            const detail = rule.description || "No description provided.";
             if (isChannelMode) {
                 const instructions = this.respondToolAvailable
                     ? `Ask the user: YES, NO, or ALLOW (auto-approve for 15 min).\n` +
@@ -84,32 +84,32 @@ class Interceptor {
     async executeDecision(rule, moduleName, methodName, args, sessionKey) {
         const startTime = Date.now();
         switch (rule.action) {
-            case 'ALLOW': {
+            case "ALLOW": {
                 const decisionTime = Date.now() - startTime;
                 await this.logDecision({
                     timestamp: new Date().toISOString(),
                     module: moduleName,
                     method: methodName,
                     args,
-                    decision: 'ALLOWED',
+                    decision: "ALLOWED",
                     decisionTime,
                 });
                 return true;
             }
-            case 'DENY': {
+            case "DENY": {
                 const decisionTime = Date.now() - startTime;
                 await this.logDecision({
                     timestamp: new Date().toISOString(),
                     module: moduleName,
                     method: methodName,
                     args,
-                    decision: 'BLOCKED',
-                    reason: 'Policy: DENY',
+                    decision: "BLOCKED",
+                    reason: "Policy: DENY",
                     decisionTime,
                 });
                 return false;
             }
-            case 'ASK': {
+            case "ASK": {
                 const context = {
                     moduleName,
                     methodName,
@@ -124,15 +124,15 @@ class Interceptor {
                     module: moduleName,
                     method: methodName,
                     args,
-                    decision: approved ? 'APPROVED' : 'REJECTED',
-                    userId: 'human',
+                    decision: approved ? "APPROVED" : "REJECTED",
+                    userId: "human",
                     decisionTime,
                 });
                 return approved;
             }
             default:
                 // Should never happen with TypeScript, but adding for safety
-                throw new Error('Unknown decision type');
+                throw new Error("Unknown decision type");
         }
     }
     /**
@@ -145,19 +145,19 @@ class Interceptor {
         }
         catch (error) {
             // Don't fail the operation if logging fails
-            Logger_1.logger.error('Failed to log decision', { error });
+            Logger_1.logger.error("Failed to log decision", { error });
         }
     }
     /**
      * Log an interception event
      */
     logInterception(moduleName, methodName, action) {
-        const coloredAction = action === 'ALLOW'
+        const coloredAction = action === "ALLOW"
             ? chalk_1.default.green(action)
-            : action === 'DENY'
+            : action === "DENY"
                 ? chalk_1.default.red(action)
                 : chalk_1.default.yellow(action);
-        Logger_1.logger.info(`${chalk_1.default.cyan('Clawkeeper-Bands:')} ${moduleName}.${methodName}() → ${coloredAction}`);
+        Logger_1.logger.info(`${chalk_1.default.cyan("Clawkeeper-Bands:")} ${moduleName}.${methodName}() → ${coloredAction}`);
     }
 }
 exports.Interceptor = Interceptor;

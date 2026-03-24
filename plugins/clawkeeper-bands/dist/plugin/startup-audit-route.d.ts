@@ -1,4 +1,4 @@
-import type { IncomingMessage, ServerResponse } from 'http';
+import type { IncomingMessage, ServerResponse } from "http";
 type StartupAuditRouteDeps = {
     config: unknown;
     logger: {

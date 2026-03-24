@@ -2,7 +2,7 @@
  * Clawkeeper-Bands Interceptor
  * The Brain - Runtime Security Evaluation Engine
  */
-import { SecurityPolicy, WebSocketConfig, CommandConfig } from '../types';
+import { SecurityPolicy, WebSocketConfig, CommandConfig } from "../types";
 export declare class Interceptor {
     private policy;
     private arbitrator;
