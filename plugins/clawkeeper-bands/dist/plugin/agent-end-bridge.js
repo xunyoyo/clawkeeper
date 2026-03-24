@@ -39,6 +39,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.createAgentEndBridgeHook = createAgentEndBridgeHook;
 const crypto_1 = require("crypto");
 const promises_1 = require("fs/promises");
+const os_1 = __importDefault(require("os"));
 const path_1 = __importDefault(require("path"));
 const Logger_1 = require("../core/Logger");
 const pending_decision_store_1 = require("./pending-decision-store");
@@ -46,6 +47,7 @@ const BRIDGE_EVENTS_PATH = path_1.default.join(Logger_1.CLAWKEEPER_BANDS_DATA_DI
 const BRIDGE_LAST_REQUEST_PATH = path_1.default.join(Logger_1.CLAWKEEPER_BANDS_DATA_DIR, "bridge-last-request.json");
 const DEFAULT_MAX_CONTEXT_CHARS = 120_000;
 const DEFAULT_JUDGE_PATH = "/plugins/clawkeeper-watcher/context-judge";
+const DEFAULT_AGENT_ID = "main";
 let runtimeHelpersPromise = null;
 function resolveBridgeConfig(pluginConfig) {
     const raw = pluginConfig?.bridge ?? {};
@@ -228,6 +230,31 @@ function resolveAgentIdFromSessionKey(sessionKey) {
     const parts = sessionKey.split(":");
     return parts.length >= 2 ? parts[1] : undefined;
 }
+function normalizeAgentId(raw) {
+    const trimmed = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+    return trimmed || DEFAULT_AGENT_ID;
+}
+function expandHomePath(input, env = process.env) {
+    if (input === "~") {
+        return env.HOME || os_1.default.homedir();
+    }
+    if (input.startsWith("~/")) {
+        return path_1.default.join(env.HOME || os_1.default.homedir(), input.slice(2));
+    }
+    return input;
+}
+function resolveLocalStorePath(store, opts) {
+    const env = opts?.env ?? process.env;
+    const agentId = normalizeAgentId(opts?.agentId);
+    const stateDir = env.OPENCLAW_STATE_DIR || env.OPENCLAW_HOME || path_1.default.join(env.HOME || os_1.default.homedir(), ".openclaw");
+    if (!store) {
+        return path_1.default.join(stateDir, "agents", agentId, "sessions", "sessions.json");
+    }
+    if (store.includes("{agentId}")) {
+        return path_1.default.resolve(expandHomePath(store.replaceAll("{agentId}", agentId), env));
+    }
+    return path_1.default.resolve(expandHomePath(store, env));
+}
 async function importRuntimeHelpers() {
     if (!runtimeHelpersPromise) {
         runtimeHelpersPromise = (async () => {
@@ -265,24 +292,15 @@ async function importRuntimeHelpers() {
             };
             const distDir = path_1.default.join(rootDir, "dist");
             const distEntries = fs.readdirSync(distDir).filter((entry) => entry.endsWith(".js"));
-            const pathsEntry = distEntries.find((entry) => /^paths-.*\.js$/.test(entry));
             const replyRuntimeEntry = distEntries.find((entry) => /^route-reply\.runtime-.*\.js$/.test(entry));
-            if (!pathsEntry) {
-                throw new Error("Unable to locate paths runtime bundle from OpenClaw dist");
-            }
             if (!replyRuntimeEntry) {
                 throw new Error("Unable to locate route-reply runtime bundle from OpenClaw dist");
             }
-            const resolveStorePath = findNamedExport(`dist/${pathsEntry}`, "resolveStorePath");
             const routeReply = findNamedExport(`dist/${replyRuntimeEntry}`, "routeReply");
-            if (typeof resolveStorePath !== "function") {
-                throw new Error(`Unable to resolve resolveStorePath from OpenClaw ${pathsEntry}`);
-            }
             if (typeof routeReply !== "function") {
                 throw new Error(`Unable to resolve routeReply from OpenClaw ${replyRuntimeEntry}`);
             }
             return {
-                resolveStorePath,
                 routeReply,
             };
         })();
@@ -333,10 +351,11 @@ async function loadCurrentDeliveryContext(params) {
         return { reason: "missing sessionKey" };
     }
     try {
-        const helpers = await importRuntimeHelpers();
+        await importRuntimeHelpers();
         const agentId = resolveAgentIdFromSessionKey(params.sessionKey);
-        const storePath = helpers.resolveStorePath(params.cfg.session?.store, {
+        const storePath = resolveLocalStorePath(params.cfg.session?.store, {
             agentId,
+            env: process.env,
         });
         const store = await loadSessionStoreFromDisk(storePath);
         const entry = store[params.sessionKey.toLowerCase()] ?? store[params.sessionKey];
@@ -436,7 +455,7 @@ function createAgentEndBridgeHook(pluginConfig, openclawConfig) {
                 body: JSON.stringify(requestPayload),
                 signal: AbortSignal.timeout(bridge.timeoutMs),
             });
-            const payload = (await response.json());
+            const payload = await response.json();
             const judge = normalizeJudgeResponse(payload);
             if (!response.ok) {
                 throw new Error(`remote context-judge returned ${response.status}: ${judge.summary || "request failed"}`);

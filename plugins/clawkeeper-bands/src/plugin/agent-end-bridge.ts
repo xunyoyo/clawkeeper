@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { appendFile, writeFile } from "fs/promises";
+import os from "os";
 import path from "path";
 import { CLAWKEEPER_BANDS_DATA_DIR, logger } from "../core/Logger";
 import { clearPendingDecision, setPendingDecision } from "./pending-decision-store";
@@ -89,7 +90,6 @@ type RouteReplyFn = (params: {
 }) => Promise<{ ok: boolean; messageId?: string; error?: string }>;
 
 type RuntimeHelpers = {
-  resolveStorePath: (store?: string, opts?: { agentId?: string }) => string;
   routeReply: RouteReplyFn;
 };
 
@@ -97,6 +97,7 @@ const BRIDGE_EVENTS_PATH = path.join(CLAWKEEPER_BANDS_DATA_DIR, "bridge-events.j
 const BRIDGE_LAST_REQUEST_PATH = path.join(CLAWKEEPER_BANDS_DATA_DIR, "bridge-last-request.json");
 const DEFAULT_MAX_CONTEXT_CHARS = 120_000;
 const DEFAULT_JUDGE_PATH = "/plugins/clawkeeper-watcher/context-judge";
+const DEFAULT_AGENT_ID = "main";
 
 let runtimeHelpersPromise: Promise<RuntimeHelpers> | null = null;
 
@@ -333,6 +334,40 @@ function resolveAgentIdFromSessionKey(sessionKey?: string): string | undefined {
   return parts.length >= 2 ? parts[1] : undefined;
 }
 
+function normalizeAgentId(raw?: string): string {
+  const trimmed = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  return trimmed || DEFAULT_AGENT_ID;
+}
+
+function expandHomePath(input: string, env: NodeJS.ProcessEnv = process.env): string {
+  if (input === "~") {
+    return env.HOME || os.homedir();
+  }
+  if (input.startsWith("~/")) {
+    return path.join(env.HOME || os.homedir(), input.slice(2));
+  }
+  return input;
+}
+
+function resolveLocalStorePath(
+  store?: string,
+  opts?: { agentId?: string; env?: NodeJS.ProcessEnv },
+): string {
+  const env = opts?.env ?? process.env;
+  const agentId = normalizeAgentId(opts?.agentId);
+  const stateDir = env.OPENCLAW_STATE_DIR || env.OPENCLAW_HOME || path.join(env.HOME || os.homedir(), ".openclaw");
+
+  if (!store) {
+    return path.join(stateDir, "agents", agentId, "sessions", "sessions.json");
+  }
+
+  if (store.includes("{agentId}")) {
+    return path.resolve(expandHomePath(store.replaceAll("{agentId}", agentId), env));
+  }
+
+  return path.resolve(expandHomePath(store, env));
+}
+
 async function importRuntimeHelpers(): Promise<RuntimeHelpers> {
   if (!runtimeHelpersPromise) {
     runtimeHelpersPromise = (async () => {
@@ -378,36 +413,24 @@ async function importRuntimeHelpers(): Promise<RuntimeHelpers> {
 
       const distDir = path.join(rootDir, "dist");
       const distEntries = fs.readdirSync(distDir).filter((entry: string) => entry.endsWith(".js"));
-      const pathsEntry = distEntries.find((entry: string) => /^paths-.*\.js$/.test(entry));
       const replyRuntimeEntry = distEntries.find((entry: string) =>
         /^route-reply\.runtime-.*\.js$/.test(entry),
       );
 
-      if (!pathsEntry) {
-        throw new Error("Unable to locate paths runtime bundle from OpenClaw dist");
-      }
       if (!replyRuntimeEntry) {
         throw new Error("Unable to locate route-reply runtime bundle from OpenClaw dist");
       }
 
-      const resolveStorePath = findNamedExport<RuntimeHelpers["resolveStorePath"]>(
-        `dist/${pathsEntry}`,
-        "resolveStorePath",
-      );
       const routeReply = findNamedExport<RuntimeHelpers["routeReply"]>(
         `dist/${replyRuntimeEntry}`,
         "routeReply",
       );
 
-      if (typeof resolveStorePath !== "function") {
-        throw new Error(`Unable to resolve resolveStorePath from OpenClaw ${pathsEntry}`);
-      }
       if (typeof routeReply !== "function") {
         throw new Error(`Unable to resolve routeReply from OpenClaw ${replyRuntimeEntry}`);
       }
 
       return {
-        resolveStorePath,
         routeReply,
       };
     })();
@@ -472,12 +495,13 @@ async function loadCurrentDeliveryContext(params: {
   }
 
   try {
-    const helpers = await importRuntimeHelpers();
+    await importRuntimeHelpers();
     const agentId = resolveAgentIdFromSessionKey(params.sessionKey);
-    const storePath = helpers.resolveStorePath(
+    const storePath = resolveLocalStorePath(
       (params.cfg as { session?: { store?: string } }).session?.store,
       {
         agentId,
+        env: process.env,
       },
     );
     const store = await loadSessionStoreFromDisk(storePath);
