@@ -3,8 +3,8 @@
  */
 import type { ClawkeeperMode } from "./types.js";
 
-/** Default root directory relative to CWD. */
-export const DEFAULT_ROOT_DIR = "./clawkeeper";
+/** Default root directory for installed/runtime Clawkeeper state. */
+export const DEFAULT_ROOT_DIR = "~/.clawkeeper";
 
 /** Subdirectories created within each mode directory. */
 export const MODE_SUBDIRS = ["workspace", "logs", "state", "runtime"] as const;

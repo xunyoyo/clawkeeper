@@ -12,7 +12,7 @@
 ### local-audit
 
 - **Purpose**: Inspect local file system for integrity checks
-- **Scope**: `./clawkeeper/local/` directory tree
+- **Scope**: Clawkeeper local mode directory tree (default: `~/.clawkeeper/local/`)
 - **Output**: File hashes, modification timestamps, anomaly flags
 
 ### skill-scan
@@ -24,11 +24,11 @@
 ### log-analysis
 
 - **Purpose**: Parse and search runtime logs
-- **Scope**: `./clawkeeper/local/logs/`
+- **Scope**: Clawkeeper local mode logs directory (default: `~/.clawkeeper/local/logs/`)
 - **Output**: Matching log entries, patterns, timeline summaries
 
 ### state-inspection
 
 - **Purpose**: Read runtime state files for additional context
-- **Scope**: `./clawkeeper/local/state/`
+- **Scope**: Clawkeeper local mode state directory (default: `~/.clawkeeper/local/state/`)
 - **Output**: State snapshots, delta comparisons

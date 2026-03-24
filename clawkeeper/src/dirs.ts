@@ -2,9 +2,20 @@
  * Directory resolution and creation for clawkeeper modes.
  */
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { CONFIG_FILENAME, DEFAULT_GATEWAY_PORTS, DEFAULT_ROOT_DIR } from "./constants.js";
 import type { ClawkeeperMode, ClawkeeperModeConfig } from "./types.js";
+
+function expandRootDir(rootDir: string): string {
+  if (rootDir === "~") {
+    return os.homedir();
+  }
+  if (rootDir.startsWith("~/")) {
+    return path.join(os.homedir(), rootDir.slice(2));
+  }
+  return rootDir;
+}
 
 /**
  * Resolve the full mode config from a mode name and optional root override.
@@ -14,7 +25,7 @@ export function resolveModeConfig(
   mode: ClawkeeperMode,
   rootDir: string = DEFAULT_ROOT_DIR,
 ): ClawkeeperModeConfig {
-  const absRoot = path.resolve(process.cwd(), rootDir);
+  const absRoot = path.resolve(process.cwd(), expandRootDir(rootDir));
   const modeDir = path.join(absRoot, mode);
 
   return {

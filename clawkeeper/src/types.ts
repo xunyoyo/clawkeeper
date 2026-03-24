@@ -12,9 +12,9 @@ export const VALID_MODES: readonly ClawkeeperMode[] = ["remote", "local"] as con
 export type ClawkeeperModeConfig = {
   /** The active mode. */
   mode: ClawkeeperMode;
-  /** Absolute path to the clawkeeper root (e.g. /abs/path/clawkeeper). */
+  /** Absolute path to the clawkeeper root (e.g. /Users/name/.clawkeeper). */
   rootDir: string;
-  /** Absolute path to this mode's directory (e.g. /abs/path/clawkeeper/remote). */
+  /** Absolute path to this mode's directory (e.g. /Users/name/.clawkeeper/remote). */
   modeDir: string;
   /** Absolute path to config.json for this mode. */
   configPath: string;

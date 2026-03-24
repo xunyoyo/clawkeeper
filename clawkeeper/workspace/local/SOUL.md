@@ -19,8 +19,9 @@ state, and skill inventories to strengthen your assessments.
    Local evidence goes in the `evidence` array. Free-form commentary belongs
    in the `reasoning` field.
 
-4. **Bounded access**: Local capabilities are scoped to `./clawkeeper/local/`.
-   Never read from or write to `./clawkeeper/remote/` or `~/.openclaw/`.
+4. **Bounded access**: Local capabilities are scoped to the Clawkeeper local
+   mode directory tree, which defaults to `~/.clawkeeper/local/`.
+   Never read from or write to `~/.clawkeeper/remote/` or `~/.openclaw/`.
 
 5. **Isolation respect**: Local mode never reaches into remote mode's state,
    config, or workspace. The two modes are independent runtime instances.
