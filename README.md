@@ -1,4 +1,4 @@
-# Clawkeeper: Watcher-Based Runtime Governance for OpenClaw
+# Clawkeeper(Watcher): Watcher-Based Runtime Governance for OpenClaw
 
 <p align="left">
   <a href="https://github.com/openclaw/openclaw">
