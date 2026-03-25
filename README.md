@@ -74,9 +74,26 @@ Make runtime behavior queryable instead of implicit:
 - **Structured Output**: Produce shared audit and scan report fields for human review and scripting
 - **Mode Status Inspection**: Check initialization status and watcher readiness from the launcher
 
+## Core Pieces
+
+Clawkeeper is easiest to understand as four separate surfaces:
+
+- `plugins/clawkeeper-watcher/`
+  - the core watcher-first governance plugin
+  - owns `context-judge`, event logging, audit, hardening, rollback, and remote intelligence
+- `plugins/clawkeeper-bands/`
+  - the user-side approval and bridge plugin
+  - owns risky tool approval, startup-audit receiving, and remote judge relay
+- `clawkeeper/`
+  - the launcher for `remote` and `local` mode execution
+- `skills/clawkeeper/SKILL.md`
+  - the bundled OpenClaw skill for setup, verification, and troubleshooting
+
+If you only want the core governance engine, start with `clawkeeper-watcher`. If you want a user-facing approval layer or watcher notifications on another gateway, add `clawkeeper-bands`.
+
 # 🚀 Quick Start
 
-## Installation From Source
+## Install from source
 
 ### 1. Install repository dependencies
 
@@ -120,7 +137,7 @@ By default, Clawkeeper stores mode state under:
 └── local/
 ```
 
-## Included Skill
+## Included skill
 
 Clawkeeper includes a bundled workspace skill:
 
@@ -130,89 +147,82 @@ skills/clawkeeper/SKILL.md
 
 Use it when you want the agent to handle Clawkeeper setup, mode initialization, watcher verification, bridge wiring, or troubleshooting through a consistent workflow instead of ad hoc guessing.
 
-## Plugin Entry Points
-
-The repo exposes two main OpenClaw plugins with distinct roles:
-
-- `plugins/clawkeeper-watcher/`
-  - watcher-first governance plugin
-  - owns `context-judge`, event logging, audit, hardening, rollback, and remote intelligence
-- `plugins/clawkeeper-bands/`
-  - user-side approval and bridge plugin
-  - owns risky tool approval, startup-audit receiving, and remote judge relay
-
-If you only want the core governance engine, start with `clawkeeper-watcher`. If you want user-facing approvals or watcher notifications on a separate gateway, add `clawkeeper-bands`.
-
 ---
 
-# 🛠️ Command Reference
+# 🎮 Feature Cases
 
-### Launcher Commands
+The README currently highlights 6 core product cases:
 
-```bash
-# Show whether each mode has been initialized
-clawkeeper status
+## 1. Audit local runtime state
 
-# Initialize mode directories without launching
-clawkeeper init remote
-clawkeeper init local
-
-# Run OpenClaw in remote or local mode
-clawkeeper remote gateway run
-clawkeeper local gateway run
-```
-
-### Watcher Commands Available in Both Modes
+Run:
 
 ```bash
-# Show the current watcher score and status
-clawkeeper remote clawkeeper-watcher status
-clawkeeper local clawkeeper-watcher status
-
-# Read logs from the watcher event stream
-clawkeeper remote clawkeeper-watcher logs
-clawkeeper local clawkeeper-watcher logs --scan
-
-# Inspect local or remote watcher outputs
-clawkeeper local clawkeeper-watcher log-path
-clawkeeper remote clawkeeper-watcher fingerprints
-clawkeeper remote clawkeeper-watcher profiles
-
-# Scan a skill path or installed skill name
-clawkeeper local clawkeeper-watcher scan-skill <name-or-path>
-```
-
-### Local-Only Governance Commands
-
-```bash
-# Run local audit and remediation flows
 clawkeeper local clawkeeper-watcher audit
-clawkeeper local clawkeeper-watcher audit --json
-clawkeeper local clawkeeper-watcher audit --fix
-clawkeeper local clawkeeper-watcher harden
-clawkeeper local clawkeeper-watcher monitor
-clawkeeper local clawkeeper-watcher rollback [backup]
 ```
 
-### User-Side Bridge Setup
+Use this case when you want a scored report of current local risk posture before making changes.
+
+![Local watcher audit](assets/readme/case-audit.png)
+
+## 2. Judge forwarded context on the remote side
+
+Send structured context to:
+
+```text
+POST /plugins/clawkeeper-watcher/context-judge
+```
+
+Use this case when you want the remote watcher to return `continue`, `ask_user`, or `stop` without modifying local state.
+
+![Remote context judge](assets/readme/case-judge.png)
+
+## 3. Forward startup audit summaries to a user gateway
+
+Install `clawkeeper-bands` on the receiving gateway and enable the local watcher bridge:
 
 ```bash
-# Install the user-side receiver plugin on the receiving gateway
 openclaw plugins install --link /path/to/clawkeeper/plugins/clawkeeper-bands
-
-# Forward startup-audit summaries from the local watcher
 clawkeeper local config set plugins.entries.clawkeeper-watcher.config.notify.userBridge.enabled true
 clawkeeper local config set plugins.entries.clawkeeper-watcher.config.notify.userBridge.url http://127.0.0.1:18889
 clawkeeper local config set plugins.entries.clawkeeper-watcher.config.notify.userBridge.token <gateway-token>
 ```
 
-### Plugin Docs
+Use this case when you want local-side watcher findings to appear on the user-facing gateway.
 
-```text
-plugins/clawkeeper-watcher/README.md
-plugins/clawkeeper-bands/README.md
-skills/clawkeeper/SKILL.md
+![Startup audit bridge](assets/readme/case-bridge.png)
+
+## 4. Pause risky tool calls for human approval
+
+On the user-facing gateway, `clawkeeper-bands` can pause risky tool calls and wait for a human decision while keeping an audit trail of approvals, rejections, and policy blocks.
+
+Use this case when you want explicit operator confirmation before shell, write, delete, or network side effects continue.
+
+![Bands approval flow](assets/readme/case-bands.png)
+
+## 5. Apply safe hardening
+
+Run:
+
+```bash
+clawkeeper local clawkeeper-watcher harden
 ```
+
+Use this case when you want the watcher to apply explicit safe remediations and create a rollback point first.
+
+![Local hardening run](assets/readme/case-harden.png)
+
+## 6. Scan a skill for risky patterns
+
+Run:
+
+```bash
+clawkeeper local clawkeeper-watcher scan-skill <name-or-path>
+```
+
+Use this case when you want to inspect a local or installed skill for dangerous install or runtime patterns.
+
+![Skill security scan](assets/readme/case-scan.png)
 
 # 🔄 Watcher Modes
 
@@ -270,37 +280,49 @@ Typical response shape:
 }
 ```
 
-# 🎮 Example Flows
+# 🛠️ Command Reference
 
-### Local-side audit and remediation
+### Launcher commands
 
-Run:
+```bash
+clawkeeper status
+clawkeeper init remote
+clawkeeper init local
+clawkeeper remote gateway run
+clawkeeper local gateway run
+```
+
+### Watcher commands available in both modes
+
+```bash
+clawkeeper remote clawkeeper-watcher status
+clawkeeper local clawkeeper-watcher status
+clawkeeper remote clawkeeper-watcher logs
+clawkeeper local clawkeeper-watcher logs --scan
+clawkeeper local clawkeeper-watcher log-path
+clawkeeper remote clawkeeper-watcher fingerprints
+clawkeeper remote clawkeeper-watcher profiles
+clawkeeper local clawkeeper-watcher scan-skill <name-or-path>
+```
+
+### Local-only governance commands
 
 ```bash
 clawkeeper local clawkeeper-watcher audit
+clawkeeper local clawkeeper-watcher audit --json
+clawkeeper local clawkeeper-watcher audit --fix
+clawkeeper local clawkeeper-watcher harden
+clawkeeper local clawkeeper-watcher monitor
+clawkeeper local clawkeeper-watcher rollback [backup]
 ```
 
-Clawkeeper inspects the local runtime state, produces a scored report, and points to safe next steps such as `harden` or manual remediation. When fixes are auto-applicable, rollback remains available before changes are written.
-
----
-
-### Remote-side risk judgment
-
-Run the remote gateway and send structured agent context to:
+### Plugin docs
 
 ```text
-POST /plugins/clawkeeper-watcher/context-judge
+plugins/clawkeeper-watcher/README.md
+plugins/clawkeeper-bands/README.md
+skills/clawkeeper/SKILL.md
 ```
-
-The remote watcher evaluates the context, attaches memory or fingerprint-based warnings when available, and returns a `continue`, `ask_user`, or `stop` decision without modifying local user state.
-
----
-
-### User-side bridge notifications
-
-Install `clawkeeper-bands` on the receiving gateway and enable the local watcher bridge.
-
-Clawkeeper can then forward startup-audit summaries or user confirmation requests back to the user-facing gateway while keeping full local remediation detail on the trusted side.
 
 ---
 
