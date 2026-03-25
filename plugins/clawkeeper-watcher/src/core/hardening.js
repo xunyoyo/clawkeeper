@@ -68,10 +68,15 @@ async function createBackupDir(stateDir) {
 
 async function backupFile(source, destination, files, relativePath) {
   try {
+    await fs.access(source);
     await fs.mkdir(path.dirname(destination), { recursive: true });
     await fs.copyFile(source, destination);
-    files.push({ relativePath, backupName: path.basename(destination) });
-  } catch {
+    files.push({ relativePath, backupName: path.basename(destination), existed: true });
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      files.push({ relativePath, backupName: null, existed: false });
+      return;
+    }
     // best effort
   }
 }

@@ -355,7 +355,8 @@ function resolveLocalStorePath(
 ): string {
   const env = opts?.env ?? process.env;
   const agentId = normalizeAgentId(opts?.agentId);
-  const stateDir = env.OPENCLAW_STATE_DIR || env.OPENCLAW_HOME || path.join(env.HOME || os.homedir(), ".openclaw");
+  const stateDir =
+    env.OPENCLAW_STATE_DIR || env.OPENCLAW_HOME || path.join(env.HOME || os.homedir(), ".openclaw");
 
   if (!store) {
     return path.join(stateDir, "agents", agentId, "sessions", "sessions.json");

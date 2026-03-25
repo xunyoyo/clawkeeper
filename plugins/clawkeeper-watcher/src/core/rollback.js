@@ -24,10 +24,15 @@ export async function rollback(stateDir, backupName) {
   const manifest = JSON.parse(await fs.readFile(path.join(backupDir, "manifest.json"), "utf-8"));
 
   for (const file of manifest.files) {
-    const source = path.join(backupDir, file.backupName);
     const target = path.join(stateDir, file.relativePath);
-    await fs.mkdir(path.dirname(target), { recursive: true });
-    await fs.copyFile(source, target);
+    if (file.backupName) {
+      const source = path.join(backupDir, file.backupName);
+      await fs.mkdir(path.dirname(target), { recursive: true });
+      await fs.copyFile(source, target);
+      continue;
+    }
+
+    await fs.rm(target, { force: true });
   }
 
   return {

@@ -1,127 +1,268 @@
 # Clawkeeper-Watcher for OpenClaw
 
-Core security control plugin for OpenClaw, designed around clawkeeper's dual-end architecture.
+<p align="left">
+  <a href="https://github.com/openclaw/openclaw">
+    <img src="https://img.shields.io/badge/OpenClaw-Compatible-blue.svg" alt="OpenClaw">
+  </a>
+  <a href="https://opensource.org/licenses/MIT">
+    <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT">
+  </a>
+</p>
 
-## Dual-Mode Operation
+**A watcher-first governance plugin for OpenClaw.**
 
-The plugin detects its runtime mode from `config.mode` or the `CLAWKEEPER_MODE` environment variable. The default mode is `local`.
+Clawkeeper-Watcher is the core governance layer in the Clawkeeper stack. It adds context judgment, runtime event logging, local audit and hardening, drift monitoring, rollback, skill scanning, and remote risk intelligence around an OpenClaw gateway. It can run in `remote` mode for read-only judgment or `local` mode for trusted remediation.
 
-| Capability                                                | Remote        | Local |
-| --------------------------------------------------------- | ------------- | ----- |
-| Context Judge HTTP endpoint                               | yes           | yes   |
-| Event logging (tool/message/LLM)                          | yes (passive) | yes   |
-| Audit / hardening / drift monitoring                      | -             | yes   |
-| User Skill Guard / scan-skill                             | -             | yes   |
-| Read-only CLI commands (`status` / `logs` / `scan-skill`) | yes           | yes   |
+[Repository](https://github.com/xunyoyo/clawkeeper) · [Root Overview](../../README.md) · [Bands Plugin](../clawkeeper-bands/README.md)
 
-## Installation
+# 💡 Features
 
-Install the plugin:
+Clawkeeper-Watcher is built around the idea that watcher logic should stay explicit and inspectable instead of being hidden inside ad hoc prompts or one-off middleware.
 
-```sh
+### 👁️ Context Judgment
+
+Evaluate structured runtime context before execution continues:
+
+- **Shared Judge Endpoint**: Exposes `POST /plugins/clawkeeper-watcher/context-judge`
+- **Decision Contract**: Returns `continue`, `ask_user`, or `stop`
+- **Evidence-Based Output**: Includes `summary`, `riskLevel`, `stopReason`, and evidence strings
+- **Mode Awareness**: Returns `mode` and `localEnhanced` so callers can distinguish the active side
+
+### 🔐 Local Governance
+
+On the trusted side, the watcher can actively inspect and remediate local state:
+
+- **Startup Audit**: Audit the user OpenClaw state on gateway start
+- **Safe Hardening**: Apply only explicit safe remediations
+- **Drift Monitoring**: Re-audit key config and rule files on change
+- **Skill Guard**: Periodically scan user-installed skills under `~/.openclaw/skills`
+- **Backup and Rollback**: Preserve rollback points before local changes are applied
+
+### 🧠 Remote Intelligence
+
+On the remote side, the watcher can accumulate higher-level judgment signals:
+
+- **Decision Memory**: Persist elevated-risk and non-continue outcomes
+- **Risk Fingerprints**: Match recurring cross-session risk patterns
+- **Agent Profiling**: Compare agent behavior against historical baselines
+- **Intent Drift Detection**: Flag tool chains that diverge from the user's apparent request
+
+### 📋 Event Visibility
+
+Record the runtime behavior needed for review and retrospective analysis:
+
+- **Tool Logging**: Capture `before_tool_call` activity
+- **Message Logging**: Capture received and outgoing message events
+- **LLM Logging**: Capture input and output metadata for model activity
+- **JSONL Storage**: Write daily event logs under `$OPENCLAW_WORKSPACE/log/YYYY-MM-DD.jsonl`
+
+# 🚀 Quick Start
+
+## Install the plugin
+
+From the plugin directory:
+
+```bash
 npx openclaw plugins install -l .
 ```
 
-## Commands
+From the repo root or another checkout:
 
-### Available in both modes (`remote` + `local`)
-
-```sh
-npx openclaw clawkeeper-watcher status                            # Show the current security score
-npx openclaw clawkeeper-watcher logs                              # Show today's event log
-npx openclaw clawkeeper-watcher logs --date 2026-03-14            # Show logs for a specific date
-npx openclaw clawkeeper-watcher logs --type before_tool_call      # Filter by event type
-npx openclaw clawkeeper-watcher logs --tool bash                  # Filter by tool name
-npx openclaw clawkeeper-watcher logs --scan                       # Scan the log for security risks
-npx openclaw clawkeeper-watcher logs --scan --save-report         # Scan and save a report
-npx openclaw clawkeeper-watcher logs --all                        # List all available log files
-npx openclaw clawkeeper-watcher log-path                          # Show the path to today's log file
-npx openclaw clawkeeper-watcher scan-skill <name-or-path>         # Scan a third-party skill
+```bash
+openclaw plugins install --link /path/to/clawkeeper/plugins/clawkeeper-watcher
 ```
 
-### Local mode only
+## Choose a mode
 
-The following commands are rejected in `remote` mode and must be run on the local side.
+Clawkeeper-Watcher supports two operating modes:
 
-```sh
-npx openclaw clawkeeper-watcher audit                             # Run the security audit
-npx openclaw clawkeeper-watcher audit --json                      # Output JSON
-npx openclaw clawkeeper-watcher audit --fix                       # Auto-fix after the audit
-npx openclaw clawkeeper-watcher harden                            # Apply safe hardening
-npx openclaw clawkeeper-watcher monitor                           # Run drift monitoring in the foreground
-npx openclaw clawkeeper-watcher rollback [backup]                 # Restore a backup
+- `remote`: read-only context judgment and passive intelligence
+- `local`: full local audit, hardening, monitoring, and rollback
+
+The plugin resolves mode from:
+
+1. plugin config `mode`
+2. `CLAWKEEPER_MODE`
+3. fallback `local`
+
+When using the full Clawkeeper stack, let the `clawkeeper` launcher set the mode for you.
+
+## Validate the watcher
+
+```bash
+npx openclaw clawkeeper-watcher status
+npx openclaw clawkeeper-watcher logs
+npx openclaw clawkeeper-watcher log-path
 ```
 
-## Context Judge HTTP Endpoint
+On the local side, also validate:
 
-Both modes register the same endpoint:
-
+```bash
+npx openclaw clawkeeper-watcher audit
+npx openclaw clawkeeper-watcher scan-skill <name-or-path>
 ```
+
+---
+
+# 🛠️ Command Reference
+
+### Commands available in both modes
+
+```bash
+# Show current watcher score and top threats
+npx openclaw clawkeeper-watcher status
+
+# Read event logs
+npx openclaw clawkeeper-watcher logs
+npx openclaw clawkeeper-watcher logs --date 2026-03-14
+npx openclaw clawkeeper-watcher logs --type before_tool_call
+npx openclaw clawkeeper-watcher logs --tool bash
+npx openclaw clawkeeper-watcher logs --scan
+npx openclaw clawkeeper-watcher logs --scan --save-report
+npx openclaw clawkeeper-watcher logs --all
+npx openclaw clawkeeper-watcher log-path
+
+# Scan third-party or user skills
+npx openclaw clawkeeper-watcher scan-skill <name-or-path>
+
+# Inspect remote intelligence outputs
+npx openclaw clawkeeper-watcher fingerprints
+npx openclaw clawkeeper-watcher profiles
+```
+
+### Local-only commands
+
+These commands are rejected in `remote` mode:
+
+```bash
+npx openclaw clawkeeper-watcher audit
+npx openclaw clawkeeper-watcher audit --json
+npx openclaw clawkeeper-watcher audit --fix
+npx openclaw clawkeeper-watcher harden
+npx openclaw clawkeeper-watcher monitor
+npx openclaw clawkeeper-watcher rollback [backup]
+```
+
+# 🔄 Operating Modes
+
+| Capability                           | `remote` | `local` |
+| ------------------------------------ | -------- | ------- |
+| Context Judge HTTP endpoint          | yes      | yes     |
+| Event logging                        | yes      | yes     |
+| Read-only status and log inspection  | yes      | yes     |
+| Decision memory persistence          | yes      | no      |
+| Risk fingerprints                    | yes      | no      |
+| Agent behavior profiling             | yes      | no      |
+| Intent drift detection               | yes      | yes     |
+| Startup audit against user state     | no       | yes     |
+| Audit / hardening / drift monitoring | no       | yes     |
+| Startup audit notification bridge    | no       | yes     |
+| Skill scanning and local remediation | no       | yes     |
+| Backup and rollback for local fixes  | no       | yes     |
+
+# 🌐 Context Judge Contract
+
+Both watcher modes register the same route:
+
+```text
 POST /plugins/clawkeeper-watcher/context-judge
 ```
 
-It accepts structured context and returns a decision: `continue`, `stop`, or `ask_user`.
-The response includes `mode` and `localEnhanced` so callers can distinguish the active side.
+The handler returns one of:
 
-## Control Surface
+- `continue`
+- `ask_user`
+- `stop`
 
-- Network exposure surface
-- Authentication on control entry points
-- Filesystem boundary checks
-- High-risk execution approval flow
-- Runtime rule-loading state
-- Third-party skill risk patterns
-- Periodic user Skill security scanning
-- Event logging -- automatically records tool calls, message traffic, and LLM interactions to `workspace/log/`
-- Context Judge -- exposes structured context decisioning over HTTP
+Typical response shape:
 
-## Output Contract
-
-Audit and scan reports follow a shared structure:
-
-- `severity`
-- `evidence`
-- `autofix`
-- `fix`
-- `next`
-
-They are designed for both human review and script consumption.
-
-## Example
-
-The repository includes a demo skill:
-
-```sh
-npm run smoke:scan
+```json
+{
+  "version": 1,
+  "mode": "local",
+  "localEnhanced": true,
+  "decision": "ask_user",
+  "stopReason": "waiting_user_confirmation",
+  "shouldContinue": false,
+  "needsUserDecision": true,
+  "userQuestion": "Command execution or another high-risk tool call was detected. Do you want to continue to the next step?",
+  "summary": "The context contains high-risk actions, and the policy requires explicit user confirmation.",
+  "riskLevel": "high",
+  "evidence": ["tool=bash", "toolCount=2"],
+  "nextAction": "ask_user",
+  "continueHint": "Continue only after explicit user confirmation."
+}
 ```
 
-This scans `examples/unsafe-skill` and prints a minimal result.
+# 🔗 Bridge Integration
 
-## Development
+Clawkeeper-Watcher can integrate with `clawkeeper-bands` in two directions:
 
-Run tests:
+- **Outbound local notification**: forward risky startup-audit summaries to a user-side Bands receiver
+- **Inbound remote judgment**: accept context-judge requests from Clawkeeper-Bands over the watcher route
 
-```sh
-npm test
+The default user-side notification target is:
+
+```text
+POST /plugins/clawkeeper-bands/clawkeeper-startup-audit
 ```
 
-Before publishing, confirm:
+For the user-side receiver and approval layer, see [../clawkeeper-bands/README.md](../clawkeeper-bands/README.md).
 
-- `npm test` passes
-- `npx openclaw clawkeeper-watcher audit` runs successfully in local mode
-- `npx openclaw clawkeeper-watcher scan-skill <path>` runs successfully
+# 📂 Architecture
 
-## Structure
+Clawkeeper-Watcher is organized around three main surfaces:
+
+1. **Core** (`src/core/`)
+   - Audit engine, hardening, rollback, drift monitoring, skill scanning
+   - Decision memory, risk fingerprints, profiling, intent drift
+   - Startup audit notification and event logging
+
+2. **Plugin Entry** (`src/plugin/`)
+   - CLI registration
+   - HTTP route registration
+   - Mode selection and gateway lifecycle hooks
+
+3. **Reporting** (`src/reporters/`)
+   - Console and JSON output formatting for audits and scans
+
+### File Structure
 
 ```text
 plugins/clawkeeper-watcher/
-  src/
-    core/           # Audit engine, hardening, drift monitor, context-judge, and other core logic
-    plugin/         # SDK registration, CLI commands, and HTTP handlers
-    reporters/      # Console and JSON report formatting
-    index.js
-  skill/
-    configs/        # Skill scanning rule library
-  openclaw.plugin.json
-  package.json
+├── src/
+│   ├── core/         # Audit, hardening, drift monitor, skill scan, event logs, intelligence
+│   ├── plugin/       # CLI registration, HTTP route, lifecycle hooks
+│   ├── reporters/    # Console and JSON report formatting
+│   └── index.js
+├── skill/            # Skill scan rules and scripts
+├── docs/             # Extra watcher docs
+├── openclaw.plugin.json
+└── package.json
 ```
+
+# 🧪 Development
+
+Run the watcher test suite:
+
+```bash
+npm test
+```
+
+Quick smoke for skill scanning:
+
+```bash
+npm run smoke:scan
+```
+
+Before publishing or relying on changes, verify:
+
+- `npm test` passes
+- `npx openclaw clawkeeper-watcher audit` succeeds in local mode
+- `npx openclaw clawkeeper-watcher scan-skill <path>` succeeds
+
+# 📕 Reference
+
+- Root overview: [../../README.md](../../README.md)
+- Bands plugin: [../clawkeeper-bands/README.md](../clawkeeper-bands/README.md)
+- Risk fingerprints: [docs/cross-session-risk-fingerprint.md](docs/cross-session-risk-fingerprint.md)

@@ -337,7 +337,9 @@ export function registerCliCommands({ program, config }) {
     .action(async (...args) => {
       const target = args[0];
       const opts = args[1] ?? {};
-      const report = await scanSkill(target);
+      const stateDir =
+        mode === "local" ? await resolveUserOpenClawStateDir() : await resolveStateDir();
+      const report = await scanSkill(target, { stateDir });
       console.log(opts.json ? formatJsonReport(report) : formatSkillScanReport(report));
     });
 

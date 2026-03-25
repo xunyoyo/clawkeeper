@@ -1,281 +1,292 @@
-# Clawkeeper-Bands
+# Clawkeeper-Bands for OpenClaw
 
-Clawkeeper-Bands is the user-side plugin for Clawkeeper-connected gateways.
-Install it on the receiving user's gateway plugin set, not on the Clawkeeper local-side runtime.
+<p align="left">
+  <a href="https://github.com/openclaw/openclaw">
+    <img src="https://img.shields.io/badge/OpenClaw-Compatible-blue.svg" alt="OpenClaw">
+  </a>
+  <a href="https://opensource.org/licenses/MIT">
+    <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT">
+  </a>
+</p>
 
-It provides:
+**A user-side approval and bridge plugin for Clawkeeper-connected gateways.**
 
-- the user-side startup-audit receiver route
-- approval middleware for risky tool calls
-- the user-side bridge to a remote `clawkeeper-watcher` `context-judge` endpoint
+Clawkeeper-Bands runs on the user-facing OpenClaw gateway. It intercepts risky tool calls, pauses execution until a human decision is available, receives startup-audit notifications from the local watcher side, and can forward finished agent context to a remote `clawkeeper-watcher` for structured judgment.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![TypeScript](https://img.shields.io/badge/%3C%2F%3E-TypeScript-%23007ACC.svg)](http://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)
+Install it on the receiving or user-side gateway, not on the trusted local watcher runtime.
 
-## Why?
+[Repository](https://github.com/xunyoyo/clawkeeper) · [Root Overview](../../README.md) · [Watcher Plugin](../clawkeeper-watcher/README.md)
 
-OpenClaw can execute shell commands, modify files, and access your APIs. OS-level isolation (containers, VMs) protects your **host machine**, but it doesn't protect the **services your agent has access to**.
+# 💡 Features
 
-Clawkeeper-Bands solves this by hooking into OpenClaw's `before_tool_call` plugin event. Before any dangerous action executes (writes, deletes, shell commands, API calls), the agent pauses and waits for your decision. In a terminal, you get an interactive prompt. On messaging channels (WhatsApp, Telegram), the agent asks you YES/NO and relays your answer via a dedicated `clawkeeper_bands_respond` tool. Every choice is logged to an immutable audit trail. Think of it as `sudo` for your AI agent: nothing happens without your explicit permission.
+Clawkeeper-Bands is the user-facing control layer in the Clawkeeper stack. It keeps human approval state on the gateway that talks to the user instead of burying those decisions inside the remote or local watcher runtime.
 
-## Features
+### ✋ Human Approval
 
-- 🔒 **Synchronous Blocking** - Agent pauses until you approve
-- ⚙️ **Granular Control** - Allow reads, ask on writes, deny deletes
-- 💬 **Channel Support** - Works in terminal, WhatsApp, Telegram via `clawkeeper_bands_respond` tool
-- 📊 **Full Audit Trail** - Every decision logged (JSON Lines format)
-- ⚡ **Zero Latency** - Runs in-process, no API calls
+Pause risky actions until the user decides:
 
-## Remote Judge Bridge
+- **`before_tool_call` Interception**: Evaluate tool calls before execution
+- **Synchronous Blocking**: Stop execution until policy or user response resolves it
+- **Policy Actions**: Support `ALLOW`, `ASK`, and `DENY`
+- **Channel-Safe Prompts**: Work in TTY and messaging flows
 
-When bridge mode is enabled, Clawkeeper-Bands forwards the finished agent context to a remote Clawkeeper watcher over:
+### 🔗 Remote Judge Bridge
+
+Forward completed agent context to a remote watcher for judgment:
+
+- **Agent-End Forwarding**: Send serialized context on `agent_end`
+- **Shared Judge Contract**: Call `POST /plugins/clawkeeper-watcher/context-judge`
+- **Pending Decision Storage**: Hold `ask_user` state on the user-side gateway
+- **Stop Mirroring**: Surface watcher stop summaries back to the user channel
+
+### 📬 Startup Audit Receiver
+
+Accept local-side watcher notifications:
+
+- **Receiver Route**: Exposes `POST /plugins/clawkeeper-bands/clawkeeper-startup-audit`
+- **User-Facing Summaries**: Deliver startup-audit findings back to the current session
+- **Separated Trust Boundaries**: Keep full remediation local while sending summaries to the user side
+
+### 📋 Audit Trail
+
+Keep approval history and bridge behavior inspectable:
+
+- **Decision Log**: Store approve, reject, allow, and block outcomes
+- **Statistics**: Track aggregate counts and response timing
+- **Bridge Events**: Persist bridge request and result metadata
+- **Local Policy Store**: Save editable rules under `~/.openclaw/clawkeeper-bands/`
+
+# 🚀 Quick Start
+
+## Install as an OpenClaw plugin
+
+From the plugin directory:
+
+```bash
+openclaw plugins install --link .
+```
+
+From the repo root or another checkout:
+
+```bash
+openclaw plugins install --link /path/to/clawkeeper/plugins/clawkeeper-bands
+```
+
+## Optional: install the CLI
+
+If you want the setup wizard and local policy management commands:
+
+```bash
+npm install -g clawkeeper-bands
+clawkeeper-bands init
+```
+
+## Validate the plugin role
+
+Bands is intended for the user-facing gateway. Typical checks:
+
+```bash
+clawkeeper-bands audit
+clawkeeper-bands policy
+clawkeeper-bands stats
+```
+
+If using the full Clawkeeper stack, pair it with `clawkeeper-watcher` on the remote or local watcher side.
+
+---
+
+# 🛠️ Command Reference
+
+### CLI commands
+
+```bash
+clawkeeper-bands init        # Interactive setup wizard
+clawkeeper-bands policy      # Show or edit security policies
+clawkeeper-bands stats       # Show decision statistics
+clawkeeper-bands audit       # Show decision audit trail
+clawkeeper-bands reset       # Reset stats
+clawkeeper-bands disable     # Temporarily disable the plugin
+clawkeeper-bands enable      # Re-enable the plugin
+```
+
+### HTTP routes and tools
+
+Bands exposes or depends on these surfaces:
+
+```text
+POST /plugins/clawkeeper-bands/clawkeeper-startup-audit
+POST /plugins/clawkeeper-watcher/context-judge
+tool clawkeeper_bands_respond
+```
+
+# 🔄 How It Works
+
+### TTY approval flow
+
+1. A risky tool call reaches `before_tool_call`.
+2. Bands maps the tool to a policy module and method.
+3. Policy returns `ALLOW`, `ASK`, or `DENY`.
+4. If `ASK`, the runtime pauses and waits for a human decision.
+5. The decision is logged to the audit trail.
+
+### Messaging-channel approval flow
+
+When a gateway session is not interactive, Bands keeps approval state in memory and asks the user through the current channel.
+
+The preferred response path is:
+
+```text
+clawkeeper_bands_respond({ decision: "yes" | "no" | "allow" })
+```
+
+- `yes`: approve once
+- `no`: deny
+- `allow`: auto-approve the same action for 15 minutes
+
+### Remote judge bridge flow
+
+When `bridge.enabled` is on:
+
+1. Bands collects the finished agent context on `agent_end`.
+2. It forwards that context to the remote watcher route:
 
 ```text
 POST /plugins/clawkeeper-watcher/context-judge
 ```
 
-The remote watcher returns a structured `continue`, `ask_user`, or `stop` decision. Clawkeeper-Bands then:
+3. The remote watcher returns `continue`, `ask_user`, or `stop`.
+4. Bands stores pending approvals or mirrors summaries back to the user channel.
 
-- stores pending confirmations when the remote side says `ask_user`
-- delivers the confirmation question back to the current user channel
-- mirrors `stop` summaries back to the user
-- keeps the approval state on the user-side gateway
+# 🔐 Policy Model
 
-## Quick Start
+Bands uses three policy outcomes:
 
-### Prerequisites
+| Policy  | Behavior                          |
+| ------- | --------------------------------- |
+| `ALLOW` | Execute immediately               |
+| `ASK`   | Pause and require a user decision |
+| `DENY`  | Block automatically               |
 
-- Node.js >= 18.0.0
-- OpenClaw installed
+Default behavior is centered on cautious interactive control:
 
-### Installation
+- file reads are generally allowed
+- writes and shell/network actions generally ask
+- destructive actions such as deletes can be denied
+- unmapped actions fall back to `defaultAction`
 
-```bash
-# Install globally
-npm install -g clawkeeper-bands
+Protected tools are mapped into policy modules such as:
 
-# Run interactive setup
-clawkeeper-bands init
+- `FileSystem`
+- `Shell`
+- `Browser`
+- `Network`
+- `Gateway`
 
-# Restart OpenClaw
-openclaw restart
-```
+# 🔗 Bridge and Receiver Integration
 
-Done! Clawkeeper-Bands is now protecting your OpenClaw instance.
+Clawkeeper-Bands sits between users and watcher runtimes:
 
-## How It Works
+- **Incoming notifications from watcher local mode**
+  - receiver route: `POST /plugins/clawkeeper-bands/clawkeeper-startup-audit`
+- **Outgoing finished-context judgment requests**
+  - watcher route: `POST /plugins/clawkeeper-watcher/context-judge`
 
-### Terminal Mode (TTY)
+Bridge configuration lives under the plugin config `bridge.*`, including:
 
-```
-Agent calls tool: write('/etc/passwd', 'hacked')
-  → before_tool_call hook fires
-  → Clawkeeper-Bands checks policy: write = ASK
-  → Interactive prompt:
-    ┌─────────────────────────────────────┐
-    │ 🦞 CLAWBANDS SECURITY ALERT         │
-    │                                     │
-    │ Module: FileSystem                  │
-    │ Method: write                       │
-    │ Args: ["/etc/passwd", "hacked"]     │
-    │                                     │
-    │ ❯ ✓ Approve                         │
-    │   ✗ Reject                          │
-    └─────────────────────────────────────┘
-  → You reject → { block: true }
-  → Decision logged to audit trail
-```
+- `enabled`
+- `url`
+- `token`
+- `judgePath`
+- `timeoutMs`
+- `maxContextChars`
+- `policy`
 
-### Channel Mode (WhatsApp / Telegram)
+Deprecated bridge fields exist for backward compatibility but are ignored by the current context-judge bridge:
 
-```
-Agent calls tool: bash('rm -rf /tmp/data')
-  → before_tool_call → policy = ASK → blocked (pending approval)
-  → Agent asks: "Clawkeeper-Bands requires approval. YES or NO?"
+- `model`
+- `systemPrompt`
+- `userPrompt`
 
-User replies YES:
-  → Agent calls clawkeeper_bands_respond({ decision: "yes" })
-  → before_tool_call intercepts → approves pending entry
-  → Agent retries bash('rm -rf /tmp/data') → approved ✓
+# 📂 Data and Storage
 
-User replies NO:
-  → Agent calls clawkeeper_bands_respond({ decision: "no" })
-  → before_tool_call intercepts → denies pending entry
-  → Agent does NOT retry → cancelled ✓
-```
+Bands stores local state under:
 
-The `clawkeeper_bands_respond` tool is registered automatically via `api.registerTool()` when the gateway supports it.
-
-## Security Policies
-
-Clawkeeper-Bands uses three decision types:
-
-| Policy    | Behavior                                 |
-| --------- | ---------------------------------------- |
-| **ALLOW** | Execute immediately (e.g., file reads)   |
-| **ASK**   | Prompt for approval (e.g., file writes)  |
-| **DENY**  | Block automatically (e.g., file deletes) |
-
-Default policy (Balanced):
-
-- FileSystem: read=ALLOW, write=ASK, delete=DENY
-- Shell: bash=ASK, exec=ASK
-- Network: fetch=ASK, request=ASK
-- Everything else: ASK (fail-secure default)
-
-## CLI Commands
-
-```bash
-clawkeeper-bands init        # Interactive setup wizard
-clawkeeper-bands policy      # Manage security policies
-clawkeeper-bands stats       # View statistics
-clawkeeper-bands audit       # View decision history
-clawkeeper-bands reset       # Reset statistics
-clawkeeper-bands disable     # Temporarily disable
-clawkeeper-bands enable      # Re-enable
-```
-
-## Example: View Audit Trail
-
-```bash
-$ clawkeeper-bands audit --lines 5
-
-16:05:00 | FileSystem.read              | ALLOWED    |   0.0s
-16:06:00 | FileSystem.write             | APPROVED   |   3.5s (human)
-16:07:00 | Shell.bash                   | REJECTED   |   1.2s (human)
-16:08:00 | FileSystem.delete            | BLOCKED    |   0.0s - Policy: DENY
-```
-
-## Example: View Statistics
-
-```bash
-$ clawkeeper-bands stats
-
-📊 Clawkeeper-Bands Statistics
-
-Total Calls:    142
-
-Decisions:
-  ✅ Allowed:      35 (24.6%)
-  ✅ Approved:     89 (62.7%) - by user
-  ❌ Rejected:     12 (8.5%)  - by user
-  🚫 Blocked:       6 (4.2%)  - by policy
-
-Average Decision Time: 2.8s
-```
-
-## Data Storage
-
-All data stored in `~/.openclaw/clawkeeper-bands/`:
-
-```
+```text
 ~/.openclaw/clawkeeper-bands/
-├── policy.json       # Your security rules
-├── decisions.jsonl   # Audit trail (append-only)
-├── stats.json        # Statistics
-└── clawkeeper-bands.log     # Application logs
+├── policy.json            # persisted policy rules
+├── decisions.jsonl        # approval and block audit trail
+├── stats.json             # aggregate counters
+├── bridge-events.jsonl    # bridge request/result events
+├── bridge-last-request.json
+└── clawkeeper-bands.log
 ```
 
-## Use as a Library
+# 📂 Architecture
 
-```typescript
-import { Interceptor, createToolCallHook } from "clawkeeper-bands";
+Clawkeeper-Bands is organized around four surfaces:
 
-// Create interceptor with default policy
-const interceptor = new Interceptor();
+1. **Core** (`src/core/`)
+   - Policy evaluation
+   - Human arbitration
+   - Approval queue
+   - Logging
 
-// Create a hook handler for OpenClaw's before_tool_call event
-const hook = createToolCallHook(interceptor);
+2. **Plugin Entry** (`src/plugin/`)
+   - `before_tool_call` interception
+   - `agent_end` bridge
+   - startup-audit receiver route
+   - `clawkeeper_bands_respond` tool registration
 
-// Register with the OpenClaw plugin API
-api.on("before_tool_call", hook);
+3. **Storage** (`src/storage/`)
+   - persisted policy
+   - decision log
+   - stats tracking
+
+4. **CLI** (`src/cli/`)
+   - setup wizard
+   - audit, stats, policy, enable, disable
+
+### File Structure
+
+```text
+plugins/clawkeeper-bands/
+├── src/
+│   ├── core/         # Policy evaluation, arbitration, approval queue, logging
+│   ├── plugin/       # Hooks, bridge, startup-audit receiver, tool registration
+│   ├── storage/      # Policy, decisions, stats
+│   ├── cli/          # Wizard and local management commands
+│   ├── config.ts
+│   └── types.ts
+├── dist/
+├── openclaw.plugin.json
+└── package.json
 ```
 
-## Protected Tools
+# 🧪 Development
 
-Clawkeeper-Bands intercepts every tool mapped in `TOOL_TO_MODULE`:
-
-- **FileSystem**: read, write, edit, glob
-- **Shell**: bash, exec
-- **Browser**: navigate, screenshot, click, type, evaluate
-- **Network**: fetch, request, webhook, download
-- **Gateway**: listSessions, listNodes, sendMessage
-
-Any unmapped tool falls through to `defaultAction` (ASK by default).
-
-## Architecture
-
-```
-src/
-├── core/
-│   ├── Interceptor.ts    # Policy evaluation engine
-│   ├── Arbitrator.ts     # Human-in-the-loop (TTY prompt / channel queue)
-│   ├── ApprovalQueue.ts  # In-memory approval state for channel mode
-│   └── Logger.ts         # Winston-based logging
-├── plugin/
-│   ├── index.ts              # Plugin entry point (hook + tool registration)
-│   ├── agent-end-bridge.ts   # Forward agent_end context to remote context-judge
-│   ├── tool-interceptor.ts   # before_tool_call handler + clawkeeper_bands_respond intercept
-│   └── config-manager.ts     # OpenClaw config management (register/unregister)
-├── storage/        # Persistence (PolicyStore, DecisionLog, StatsTracker)
-├── cli/            # Command-line interface
-├── types.ts        # TypeScript definitions
-└── config.ts       # Default policies
-```
-
-## Development
+For local development:
 
 ```bash
-# Clone repo
-git clone https://github.com/xunyoyo/clawkeeper.git
-cd clawkeeper/plugins/clawkeeper-bands
-
-# Install dependencies
+cd plugins/clawkeeper-bands
 npm install
-
-# Build
 npm run build
+```
 
-# Test CLI locally
+To test the CLI after building:
+
+```bash
+node dist/cli/index.js --help
 node dist/cli/index.js init
+```
 
-# Link for global testing
+To test as a linked CLI package:
+
+```bash
 npm link
 clawkeeper-bands --help
 ```
 
-## Security Guarantees
+# 📕 Reference
 
-✅ **Zero Trust** - Every action evaluated
-✅ **Synchronous Blocking** - Agent waits for approval
-✅ **No Bypass** - Plugin hooks intercept all tool calls
-✅ **Immutable Audit** - JSON Lines append-only format
-✅ **Human Authority** - Critical decisions need approval
-✅ **Fail Secure** - Unknown actions default to ASK/DENY
-
-## Contributing
-
-We believe in safe AI. PRs welcome!
-
-1. Fork the repo
-2. Create your feature branch: `git checkout -b feature/amazing`
-3. Commit changes: `git commit -m 'Add amazing feature'`
-4. Push: `git push origin feature/amazing`
-5. Open a Pull Request
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
-
-## License
-
-MIT - See [LICENSE](LICENSE) for details.
-
-## Acknowledgments
-
-- Built for [OpenClaw](https://github.com/openclaw) agents
-- Inspired by the need for human oversight in AI systems
-- Thanks to the AI safety community
-
----
-
-**Built with ❤️ for a safer AI future.**
+- Root overview: [../../README.md](../../README.md)
+- Watcher plugin: [../clawkeeper-watcher/README.md](../clawkeeper-watcher/README.md)

@@ -1,23 +1,222 @@
-# Clawkeeper
+# Clawkeeper: Watcher-Based Runtime Governance for OpenClaw
 
-Clawkeeper is a watcher-focused runtime wrapper centered on `clawkeeper-watcher`.
-It provides a dual-mode governance layer that adds context judgment, audit, hardening, drift monitoring, and remote risk intelligence around the underlying runtime.
+<p align="left">
+  <a href="https://github.com/openclaw/openclaw">
+    <img src="https://img.shields.io/badge/OpenClaw-Compatible-blue.svg" alt="OpenClaw">
+  </a>
+  <a href="https://opensource.org/licenses/MIT">
+    <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT">
+  </a>
+</p>
 
-[Repository](https://github.com/xunyoyo/clawkeeper) · [Watcher Plugin](plugins/clawkeeper-watcher/README.md) · [Launcher Source](clawkeeper/) · [Vision](VISION.md) · [License](LICENSE)
+**A watcher-first runtime governance layer for OpenClaw.**
 
-## What Clawkeeper Is
+Clawkeeper is centered on `clawkeeper-watcher`, a governance watcher for OpenClaw that adds context judgment, audit, hardening, drift monitoring, rollback, and remote risk intelligence around the runtime. The repository also includes the `clawkeeper` launcher for mode-scoped execution and `clawkeeper-bands`, a user-side approval and bridge plugin for notifications, confirmations, and remote judge relay.
 
-This repository presents a Clawkeeper-first runtime model:
+[Repository](https://github.com/xunyoyo/clawkeeper) · [Watcher Plugin](plugins/clawkeeper-watcher/README.md) · [Bands Plugin](plugins/clawkeeper-bands/README.md) · [Clawkeeper Skill](skills/clawkeeper/SKILL.md) · [License](LICENSE)
 
-- A `clawkeeper` launcher that boots isolated environments
-- A `clawkeeper-watcher` plugin that provides dual-mode governance
-- Separate `remote` and `local` operating modes with different trust and remediation boundaries
+This repo also ships a matching OpenClaw skill at `skills/clawkeeper/SKILL.md` for setup, configuration, verification, and debugging workflows.
 
-The launcher is the external entry point, and the watcher capabilities are intended to be reached through `clawkeeper ...`.
+# 💡 Features
 
-## Dual-Mode Governance Model
+Clawkeeper is designed as a watcher-centered governance layer around OpenClaw rather than a single-point filter. It keeps runtime judgment, local remediation, and user-side approvals explicit so the system stays auditable and easier to reason about.
 
-`clawkeeper-watcher` runs in two modes:
+### 👁️ Watcher Core
+
+The watcher is the center of the system:
+
+- **Context Judgment**: Review structured agent context before risky execution continues
+- **Shared HTTP Contract**: Expose `POST /plugins/clawkeeper-watcher/context-judge`
+- **Event Observation**: Capture tool calls, messages, and LLM activity for later analysis
+- **Governance Output**: Return `continue`, `ask_user`, or `stop` with evidence and next-step hints
+
+### 🔐 Local Protection
+
+On the trusted side, the watcher can actively protect local state:
+
+- **Startup Audit**: Inspect local OpenClaw state during startup
+- **Safe Hardening**: Apply only explicitly safe remediation paths
+- **Drift Monitoring**: Detect policy and config changes and re-audit on change
+- **Skill Guard**: Periodically scan user-installed skills under `~/.openclaw/skills`
+- **Backup and Rollback**: Preserve rollback points before local fixes are applied
+
+### 👁️ Remote Intelligence
+
+On the remote side, the watcher can accumulate long-horizon security signals:
+
+- **Decision Memory**: Persist elevated-risk and non-continue outcomes
+- **Risk Fingerprints**: Match recurring high-risk patterns across sessions
+- **Agent Profiling**: Compare current behavior against historical baselines
+- **Intent Drift Detection**: Flag tool chains that diverge from the user's apparent request
+
+### 🎯 Mode-Specific Deployment
+
+Clawkeeper packages the watcher into two operating modes with explicit trust boundaries:
+
+- **Remote Watcher**: Read-only risk judgment, confirmation gating, and historical intelligence
+- **Local Watcher**: Trusted audit, hardening, rollback, and drift monitoring
+- **Operational Isolation**: Each mode runs in its own prepared state, config, and workspace tree
+
+### 🔗 User-Side Bridge
+
+Keep the user-facing gateway separate from the local remediation side:
+
+- **Startup Audit Forwarding**: Send summary notifications back to a user gateway
+- **Approval Flow Integration**: Let `clawkeeper-bands` hold pending confirmations on the receiving side
+- **Remote Judge Relay**: Forward finished agent context to a remote watcher and surface `continue`, `ask_user`, or `stop`
+
+### 📋 Auditing and Visibility
+
+Make runtime behavior queryable instead of implicit:
+
+- **Event Logging**: Record tool calls, message traffic, and LLM input/output events
+- **Risk Scanning**: Analyze event logs for suspicious patterns
+- **Structured Output**: Produce shared audit and scan report fields for human review and scripting
+- **Mode Status Inspection**: Check initialization status and watcher readiness from the launcher
+
+# 🚀 Quick Start
+
+## Installation From Source
+
+### 1. Install repository dependencies
+
+```bash
+pnpm install
+```
+
+### 2. Build and link the `clawkeeper` launcher
+
+```bash
+cd clawkeeper
+npm install
+npm run build
+npm link
+cd ..
+```
+
+### 3. Initialize the two operating modes
+
+```bash
+clawkeeper init remote
+clawkeeper init local
+clawkeeper local config set gateway.mode local
+```
+
+### 4. Launch through Clawkeeper
+
+```bash
+# Remote mode
+clawkeeper remote gateway run
+
+# Local mode
+clawkeeper local gateway run
+```
+
+By default, Clawkeeper stores mode state under:
+
+```text
+~/.clawkeeper/
+├── remote/
+└── local/
+```
+
+## Included Skill
+
+Clawkeeper includes a bundled workspace skill:
+
+```text
+skills/clawkeeper/SKILL.md
+```
+
+Use it when you want the agent to handle Clawkeeper setup, mode initialization, watcher verification, bridge wiring, or troubleshooting through a consistent workflow instead of ad hoc guessing.
+
+## Plugin Entry Points
+
+The repo exposes two main OpenClaw plugins with distinct roles:
+
+- `plugins/clawkeeper-watcher/`
+  - watcher-first governance plugin
+  - owns `context-judge`, event logging, audit, hardening, rollback, and remote intelligence
+- `plugins/clawkeeper-bands/`
+  - user-side approval and bridge plugin
+  - owns risky tool approval, startup-audit receiving, and remote judge relay
+
+If you only want the core governance engine, start with `clawkeeper-watcher`. If you want user-facing approvals or watcher notifications on a separate gateway, add `clawkeeper-bands`.
+
+---
+
+# 🛠️ Command Reference
+
+### Launcher Commands
+
+```bash
+# Show whether each mode has been initialized
+clawkeeper status
+
+# Initialize mode directories without launching
+clawkeeper init remote
+clawkeeper init local
+
+# Run OpenClaw in remote or local mode
+clawkeeper remote gateway run
+clawkeeper local gateway run
+```
+
+### Watcher Commands Available in Both Modes
+
+```bash
+# Show the current watcher score and status
+clawkeeper remote clawkeeper-watcher status
+clawkeeper local clawkeeper-watcher status
+
+# Read logs from the watcher event stream
+clawkeeper remote clawkeeper-watcher logs
+clawkeeper local clawkeeper-watcher logs --scan
+
+# Inspect local or remote watcher outputs
+clawkeeper local clawkeeper-watcher log-path
+clawkeeper remote clawkeeper-watcher fingerprints
+clawkeeper remote clawkeeper-watcher profiles
+
+# Scan a skill path or installed skill name
+clawkeeper local clawkeeper-watcher scan-skill <name-or-path>
+```
+
+### Local-Only Governance Commands
+
+```bash
+# Run local audit and remediation flows
+clawkeeper local clawkeeper-watcher audit
+clawkeeper local clawkeeper-watcher audit --json
+clawkeeper local clawkeeper-watcher audit --fix
+clawkeeper local clawkeeper-watcher harden
+clawkeeper local clawkeeper-watcher monitor
+clawkeeper local clawkeeper-watcher rollback [backup]
+```
+
+### User-Side Bridge Setup
+
+```bash
+# Install the user-side receiver plugin on the receiving gateway
+openclaw plugins install --link /path/to/clawkeeper/plugins/clawkeeper-bands
+
+# Forward startup-audit summaries from the local watcher
+clawkeeper local config set plugins.entries.clawkeeper-watcher.config.notify.userBridge.enabled true
+clawkeeper local config set plugins.entries.clawkeeper-watcher.config.notify.userBridge.url http://127.0.0.1:18889
+clawkeeper local config set plugins.entries.clawkeeper-watcher.config.notify.userBridge.token <gateway-token>
+```
+
+### Plugin Docs
+
+```text
+plugins/clawkeeper-watcher/README.md
+plugins/clawkeeper-bands/README.md
+skills/clawkeeper/SKILL.md
+```
+
+# 🔄 Watcher Modes
+
+`clawkeeper-watcher` runs in two modes with different responsibilities:
 
 | Capability                           | `remote` | `local` |
 | ------------------------------------ | -------- | ------- |
@@ -35,40 +234,11 @@ The launcher is the external entry point, and the watcher capabilities are inten
 | Skill scanning and local remediation | no       | yes     |
 | Backup and rollback for local fixes  | no       | yes     |
 
-### Remote mode
+---
 
-Remote mode acts as a read-only decision service. It is designed for:
+# 🌐 Context Judge Contract
 
-- risk judgment
-- confirmation gating before execution continues
-- multi-turn session state judgment across forwarded context
-- decision memory persistence for non-continue and elevated-risk outcomes
-- cross-session fingerprint matching for recurring risk patterns
-- per-agent behavior profiling against historical baselines
-- semantic intent drift detection when the tool chain diverges from user intent
-- structured context review through `POST /plugins/clawkeeper-watcher/context-judge`
-
-### Local mode
-
-Local mode is the governance and remediation side. It is designed for:
-
-- local context judgment with local-side evidence and `localEnhanced: true`
-- startup audit against the user's runtime state under `~/.openclaw`
-- optional startup audit summaries forwarded back through the user-side `clawkeeper-bands` plugin
-- safe auto hardening for explicitly auto-fixable issues only
-- drift monitoring for key config and rules files with deduplicated high-severity alerts
-- runtime governance records for decisions, audits, hardening runs, and drift detections
-- periodic user skill guarding under `~/.openclaw/skills`
-- local security audits
-- safe hardening and rollback
-- drift monitoring
-- third-party skill scanning
-- backup and rollback before local fixes are applied
-- local log inspection and remediation guidance
-
-## Context Judge Contract
-
-Both modes expose the same route:
+Both modes expose the same HTTP route:
 
 ```text
 POST /plugins/clawkeeper-watcher/context-judge
@@ -80,7 +250,7 @@ The handler returns one of three decisions:
 - `ask_user`
 - `stop`
 
-The base response shape includes:
+Typical response shape:
 
 ```json
 {
@@ -100,187 +270,76 @@ The base response shape includes:
 }
 ```
 
-Mode-specific behavior:
+# 🎮 Example Flows
 
-- Local mode returns `mode: "local"` and `localEnhanced: true`
-- Remote mode returns `mode: "remote"` and `localEnhanced: false`
-- Remote mode may additionally attach fingerprint, agent-anomaly, or intent-drift signals when those features are enabled
-- Decision memory is persisted only in remote mode
+### Local-side audit and remediation
 
-## Local Governance Features
-
-The local side governs the user's runtime state, not just Clawkeeper's own launcher workspace.
-
-### Startup Audit
-
-On gateway start in local mode, the watcher audits the user's `~/.openclaw` state and summarizes the current risk posture.
-By default, notification forwarding is bridge-based and summary-only: risky startup findings can be sent back through an installed user-side `clawkeeper-bands` route, while full remediation detail stays in the local audit surface.
-
-### Auto Hardening
-
-When `autoHarden` is enabled, Clawkeeper only applies fixes with an explicit safe remediation path.
-It does not rewrite user state indiscriminately.
-
-### Drift Monitoring
-
-The local side watches key policy and configuration files, reruns the audit on change, and only forwards deduplicated CRITICAL or HIGH summaries.
-
-### Skill Guard
-
-When enabled, Skill Guard periodically scans user-installed skills under `~/.openclaw/skills`.
-Low-risk results stay local; CRITICAL and HIGH findings can be forwarded through the same bridge path.
-
-### Backup and Rollback
-
-Before local hardening changes are applied, Clawkeeper creates backups and keeps rollback available for the changed files.
-
-## Remote Intelligence Features
-
-Remote mode is where long-horizon judgment signals accumulate.
-
-### Decision Memory
-
-Remote context-judge results persist decision memory for non-continue or elevated-risk outcomes.
-That archive keeps stop reasons, risk level, tool summaries, session keys, and other replayable context signals for later comparison.
-
-### Risk Fingerprints
-
-When enabled, incoming requests are compared against known cross-session risk fingerprints derived from decision memory.
-Fingerprint matches are attached as additive warnings; they do not replace the base decision flow.
-
-### Agent Behavior Profiling
-
-When enabled, Clawkeeper builds per-agent baselines from historical event logs and compares current tool usage and token patterns against those baselines.
-
-### Intent Drift Detection
-
-Intent drift compares the user's apparent request against the observed tool chain and flags cases where actions move into a different risk domain, such as persistence, credential access, or exfiltration-oriented behavior.
-
-## Repository Layout
-
-```text
-.
-├─ clawkeeper/                 # Clawkeeper launcher package
-├─ plugins/clawkeeper-bands/   # User-side bridge and approval plugin
-├─ plugins/clawkeeper-watcher/ # Watcher plugin and audit logic
-├─ src/                        # Underlying runtime codebase
-└─ README.md                   # This project-level overview
-```
-
-## Install Clawkeeper From Source
-
-Clawkeeper currently lives inside this repository as a launcher plus plugin layered on top of the underlying runtime codebase.
-
-### 1. Install the repo dependencies
-
-```bash
-pnpm install
-```
-
-### 2. Build and install the `clawkeeper` CLI
-
-```bash
-cd clawkeeper
-npm install
-npm run build
-npm link
-cd ..
-```
-
-After `npm link`, the `clawkeeper` command is available on your PATH.
-By default, Clawkeeper stores its mode directories under `~/.clawkeeper/`.
-
-### 3. Inspect mode status
-
-```bash
-clawkeeper status
-```
-
-### 4. Initialize a mode
-
-```bash
-clawkeeper init remote
-clawkeeper init local
-clawkeeper local config set gateway.mode local
-```
-
-### 5. Launch through Clawkeeper
-
-```bash
-# Remote mode
-clawkeeper remote gateway run
-
-# Local mode
-clawkeeper local gateway run
-```
-
-The launcher prepares isolated state, config, and workspace directories for each mode, then delegates execution to the repo-local runtime entry.
-Unless you override it with `--root <path>`, the default layout is:
-
-```text
-~/.clawkeeper/
-├─ remote/
-└─ local/
-```
-
-For local mode, the gateway currently expects `gateway.mode=local` to be present in the generated config before `gateway run`.
-
-## Watcher Commands
-
-External callers should use the watcher surface through `clawkeeper ...`.
-The shared operations are available through the mode-specific launcher entry:
-
-```bash
-clawkeeper remote clawkeeper-watcher status
-clawkeeper local clawkeeper-watcher status
-clawkeeper remote clawkeeper-watcher logs
-clawkeeper local clawkeeper-watcher logs --scan
-clawkeeper local clawkeeper-watcher scan-skill <name-or-path>
-clawkeeper remote clawkeeper-watcher fingerprints
-clawkeeper remote clawkeeper-watcher profiles
-```
-
-Local-only commands are intended for the trusted execution side:
+Run:
 
 ```bash
 clawkeeper local clawkeeper-watcher audit
-clawkeeper local clawkeeper-watcher audit --fix
-clawkeeper local clawkeeper-watcher harden
-clawkeeper local clawkeeper-watcher monitor
-clawkeeper local clawkeeper-watcher rollback [backup]
 ```
 
-For the full plugin surface, see [plugins/clawkeeper-watcher/README.md](plugins/clawkeeper-watcher/README.md).
+Clawkeeper inspects the local runtime state, produces a scored report, and points to safe next steps such as `harden` or manual remediation. When fixes are auto-applicable, rollback remains available before changes are written.
 
-## User-Side Bridge
+---
 
-If you want startup-audit, drift, or skill-guard summaries to land on a separate user-side gateway, that gateway must expose the `clawkeeper-bands` receiver route:
+### Remote-side risk judgment
+
+Run the remote gateway and send structured agent context to:
 
 ```text
-POST /plugins/clawkeeper-bands/clawkeeper-startup-audit
+POST /plugins/clawkeeper-watcher/context-judge
 ```
 
-In practice, that means installing the user-side `clawkeeper-bands` plugin on the receiving gateway and configuring the local watcher bridge:
+The remote watcher evaluates the context, attaches memory or fingerprint-based warnings when available, and returns a `continue`, `ask_user`, or `stop` decision without modifying local user state.
 
-```bash
-openclaw plugins install --link /path/to/clawkeeper/plugins/clawkeeper-bands
+---
 
-clawkeeper local config set plugins.entries.clawkeeper-watcher.config.notify.userBridge.enabled true
-clawkeeper local config set plugins.entries.clawkeeper-watcher.config.notify.userBridge.url http://127.0.0.1:18889
-clawkeeper local config set plugins.entries.clawkeeper-watcher.config.notify.userBridge.token <gateway-token>
+### User-side bridge notifications
+
+Install `clawkeeper-bands` on the receiving gateway and enable the local watcher bridge.
+
+Clawkeeper can then forward startup-audit summaries or user confirmation requests back to the user-facing gateway while keeping full local remediation detail on the trusted side.
+
+---
+
+# 📂 Architecture
+
+Clawkeeper is organized around three main layers:
+
+1. **Watcher Plugin** (`plugins/clawkeeper-watcher/`)
+   - Core watcher-first governance layer
+   - Owns `POST /plugins/clawkeeper-watcher/context-judge`
+   - Handles event logging, audit, hardening, rollback, monitoring, skill scanning, and remote intelligence
+
+2. **Launcher** (`clawkeeper/`)
+   - Mode initialization and isolated directory preparation
+   - `remote` and `local` execution entry points
+   - Shared CLI surface through `clawkeeper ...`
+
+3. **Bands Plugin** (`plugins/clawkeeper-bands/`)
+   - User-facing approval and bridge layer
+   - Owns `POST /plugins/clawkeeper-bands/clawkeeper-startup-audit`
+   - Handles pending confirmations, startup-audit delivery, and remote judge relay
+
+### File Structure
+
+```text
+.
+├── clawkeeper/                 # Launcher package and mode bootstrap
+├── plugins/clawkeeper-watcher/ # Watcher plugin and governance logic
+├── plugins/clawkeeper-bands/   # User-side bridge and approval plugin
+├── src/                        # Underlying OpenClaw runtime codebase
+├── VISION.md                   # Direction and positioning
+└── README.md                   # Project overview
 ```
 
-The bridge URL can be set as a bare URL string; no extra JSON quoting is required.
+---
 
-## Current Focus
+# 📕 Reference
 
-The near-term goal of this fork is to make the watcher model usable and legible:
-
-- keep remote and local responsibilities explicit
-- provide auditable governance around tool use, confirmation boundaries, and skill loading
-- preserve enough compatibility to keep the underlying runtime usable underneath
-
-## Status
-
-This repository is in an active transition state toward a Clawkeeper-first presentation.
-External usage should go through `clawkeeper ...`, even when the underlying implementation is still wrapped internally.
+- Watcher plugin: [plugins/clawkeeper-watcher/README.md](plugins/clawkeeper-watcher/README.md)
+- Bands plugin: [plugins/clawkeeper-bands/README.md](plugins/clawkeeper-bands/README.md)
+- OpenClaw skill: [skills/clawkeeper/SKILL.md](skills/clawkeeper/SKILL.md)
+- Vision: [VISION.md](VISION.md)

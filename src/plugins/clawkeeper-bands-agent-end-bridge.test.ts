@@ -91,9 +91,8 @@ describe("clawkeeper-bands agent_end bridge", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const { createAgentEndBridgeHook } = await import(
-      "../../plugins/clawkeeper-bands/src/plugin/agent-end-bridge.js"
-    );
+    const { createAgentEndBridgeHook } =
+      await import("../../plugins/clawkeeper-bands/src/plugin/agent-end-bridge.js");
     const hook = createAgentEndBridgeHook(
       {
         bridge: {

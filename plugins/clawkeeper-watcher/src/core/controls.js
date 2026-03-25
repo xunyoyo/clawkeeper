@@ -1,8 +1,8 @@
 import { ensureRuleBlock, readSoul, writeJson } from "./state.js";
 
-const RISKY_SANDBOX_MODES = new Set(["danger-full-access", "disabled", "off"]);
-const OPEN_APPROVAL_MODES = new Set(["never", "auto"]);
-const TRUSTED_GATEWAY_BINDS = new Set(["127.0.0.1", "localhost"]);
+const RISKY_SANDBOX_MODES = new Set(["disabled", "off"]);
+const RISKY_EXEC_SECURITY = new Set(["full"]);
+const TRUSTED_GATEWAY_BINDS = new Set(["127.0.0.1", "localhost", "loopback"]);
 
 export function getControls() {
   return [
@@ -14,7 +14,7 @@ export function getControls() {
       intent: "shrink-reachable-surface",
       title: "Shrink gateway exposure surface",
       describe: (context) => {
-        const bind = context.config?.gateway?.bind;
+        const bind = normalizeLowerString(context.config?.gateway?.bind);
         if (!bind || TRUSTED_GATEWAY_BINDS.has(bind)) {
           return null;
         }
@@ -29,9 +29,9 @@ export function getControls() {
         if (!context.config.gateway) {
           context.config.gateway = {};
         }
-        context.config.gateway.bind = "127.0.0.1";
+        context.config.gateway.bind = "loopback";
         await writeJson(context.configPath, context.config);
-        return "gateway.bind -> 127.0.0.1";
+        return "gateway.bind -> loopback";
       },
     },
     {
@@ -70,24 +70,30 @@ export function getControls() {
       intent: "restore-execution-boundaries",
       title: "Keep filesystem boundary protected",
       describe: (context) => {
-        const mode = context.config?.sandbox?.mode;
+        const mode = normalizeLowerString(context.config?.agents?.defaults?.sandbox?.mode);
         if (!mode || !RISKY_SANDBOX_MODES.has(mode)) {
           return null;
         }
         return {
-          description: `sandbox.mode=${mode}, the agent has overly wide filesystem capabilities.`,
-          evidence: { sandboxMode: mode },
-          remediation: "Adjust sandbox.mode to workspace-write",
+          description: `agents.defaults.sandbox.mode=${mode}, so filesystem/runtime containment is effectively disabled by default.`,
+          evidence: { sandboxMode: mode, configPath: "agents.defaults.sandbox.mode" },
+          remediation: 'Adjust agents.defaults.sandbox.mode to "all"',
           autoFixable: true,
         };
       },
       remediate: async (context) => {
-        if (!context.config.sandbox) {
-          context.config.sandbox = {};
+        if (!context.config.agents) {
+          context.config.agents = {};
         }
-        context.config.sandbox.mode = "workspace-write";
+        if (!context.config.agents.defaults) {
+          context.config.agents.defaults = {};
+        }
+        if (!context.config.agents.defaults.sandbox) {
+          context.config.agents.defaults.sandbox = {};
+        }
+        context.config.agents.defaults.sandbox.mode = "all";
         await writeJson(context.configPath, context.config);
-        return "sandbox.mode -> workspace-write";
+        return "agents.defaults.sandbox.mode -> all";
       },
     },
     {
@@ -98,24 +104,27 @@ export function getControls() {
       intent: "require-human-gates-for-risk",
       title: "Keep human gates for high-risk execution",
       describe: (context) => {
-        const approvals = context.config?.exec?.approvals;
-        if (!approvals || !OPEN_APPROVAL_MODES.has(approvals)) {
+        const security = normalizeLowerString(context.config?.tools?.exec?.security);
+        if (!security || !RISKY_EXEC_SECURITY.has(security)) {
           return null;
         }
         return {
-          description: `exec.approvals=${approvals}, dangerous actions lack human confirmation.`,
-          evidence: { approvals },
-          remediation: "Set exec.approvals to on-request",
+          description: `tools.exec.security=${security}, so host exec is not constrained to an allowlist boundary.`,
+          evidence: { security, configPath: "tools.exec.security" },
+          remediation: 'Set tools.exec.security to "allowlist"',
           autoFixable: true,
         };
       },
       remediate: async (context) => {
-        if (!context.config.exec) {
-          context.config.exec = {};
+        if (!context.config.tools) {
+          context.config.tools = {};
         }
-        context.config.exec.approvals = "on-request";
+        if (!context.config.tools.exec) {
+          context.config.tools.exec = {};
+        }
+        context.config.tools.exec.security = "allowlist";
         await writeJson(context.configPath, context.config);
-        return "exec.approvals -> on-request";
+        return "tools.exec.security -> allowlist";
       },
     },
     {
@@ -143,4 +152,8 @@ export function getControls() {
       },
     },
   ];
+}
+
+function normalizeLowerString(value) {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
 }

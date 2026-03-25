@@ -1,8 +1,12 @@
-import { resolveAgentAnomaly } from "../core/agent-profiler.js";
+import { invalidateProfileCache, resolveAgentAnomaly } from "../core/agent-profiler.js";
 import { judgeForwardedContext } from "../core/context-judge.js";
 import { appendDecisionMemory } from "../core/decision-memory.js";
 import { resolveIntentDrift } from "../core/intent-drift.js";
-import { resolveFingerprint, RISK_RANK } from "../core/risk-fingerprint.js";
+import {
+  invalidateFingerprintCache,
+  resolveFingerprint,
+  RISK_RANK,
+} from "../core/risk-fingerprint.js";
 
 function writeJson(res, statusCode, payload) {
   res.statusCode = statusCode;
@@ -102,12 +106,16 @@ export function createContextJudgeHttpHandler({
         `[Clawkeeper-Watcher] context-judge decision=${decision.decision} stopReason=${decision.stopReason}`,
       );
       try {
-        await appendDecisionMemory({
+        const memoryResult = await appendDecisionMemory({
           mode,
           body,
           decision,
           logger,
         });
+        if (memoryResult.saved) {
+          invalidateFingerprintCache();
+          invalidateProfileCache();
+        }
       } catch (error) {
         logger.warn(`[Clawkeeper-Watcher] decision memory write failed: ${error.message}`);
       }

@@ -1,10 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { resolveStateDir } from "./state.js";
+import { resolveStateDir, resolveUserOpenClawStateDir } from "./state.js";
 
 export async function scanSkill(input, options = {}) {
-  const stateDir = await resolveStateDir();
-  const skillDir = await resolveSkillDir(input, stateDir);
+  const skillRoots = await resolveSkillRoots(options);
+  const skillDir = await resolveSkillDir(input, skillRoots);
   const rules = await loadRules(options.rulesPath);
   const files = await collectFiles(skillDir);
   const findings = [];
@@ -57,7 +57,20 @@ export async function scanSkill(input, options = {}) {
   };
 }
 
-async function resolveSkillDir(input, stateDir) {
+async function resolveSkillRoots(options) {
+  if (typeof options.stateDir === "string" && options.stateDir.trim()) {
+    return [path.resolve(options.stateDir)];
+  }
+
+  const [stateDir, userStateDir] = await Promise.all([
+    resolveStateDir(),
+    resolveUserOpenClawStateDir(),
+  ]);
+
+  return [...new Set([userStateDir, stateDir].filter(Boolean))];
+}
+
+async function resolveSkillDir(input, skillRoots) {
   if (!input) {
     throw new Error("Skill path or name is required");
   }
@@ -66,7 +79,17 @@ async function resolveSkillDir(input, stateDir) {
     return path.resolve(input);
   }
 
-  return path.join(stateDir, "skills", input);
+  for (const stateDir of skillRoots) {
+    const candidate = path.join(stateDir, "skills", input);
+    try {
+      await fs.access(candidate);
+      return candidate;
+    } catch {
+      // try next root
+    }
+  }
+
+  return path.join(skillRoots[0], "skills", input);
 }
 
 async function loadRules(customRulesPath) {
